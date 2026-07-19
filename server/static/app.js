@@ -353,13 +353,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Comprehensive tsundere and dynamic sentiment matching
         const annoyedIntenseRegex = /shut up|hate you|go away|idiot|baka|annoyed|bothering|stupid|jerk|stop/i;
-        const annoyedRegex = /[😤💢😡👿🤬]|ugh|boring|goldfish|tsundere|irritated|huff/i;
+        const annoyedRegex = /[😤💢😡👿🤬]|ugh|boring|goldfish|tsundere|irritated|huff/iu;
         
         const happyGreetingRegex = /\b(hi|hello|hey|welcome|greet|greetings|morning)\b/i;
         const happyExcitedRegex = /excited|thrilled|great|wonderful|fantastic|yay|awesome|amazing/i;
-        const happyRegex = /[😊✨💖💕❤️😍🌟🎉🌸🥰]|happy|love|smile|cute|senpai|thank/i;
+        const happyRegex = /[😊✨💖💕❤️😍🌟🎉🌸🥰]|happy|love|smile|cute|senpai|thank/iu;
         
-        const sadRegex = /[😢😭💔😰🤧😿]|sad|cry|hurt|tears|sorry|lonely|depressed|unhappy|distressed/i;
+        const sadRegex = /[😢😭💔😰🤧😿]|sad|cry|hurt|tears|sorry|lonely|depressed|unhappy|distressed/iu;
         const thinkingRegex = /\.\.\.|\?|hmm|thinking|wonder|curious|ponder/i;
         
         let emotion = 'neutral';
