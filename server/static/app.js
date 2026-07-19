@@ -232,8 +232,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 6. Append Assistant Message (supporting reasoning and play button)
     function appendAssistantMessage(text, thinking, audioUrl) {
-        // Update Riko's face expressions and emotion dynamically
-        updateAvatarEmotion(text);
+        // Update Riko's face expressions and emotion dynamically (defer video swap if voice audio will play)
+        updateAvatarEmotion(text, !!audioUrl);
 
         const msgDiv = document.createElement('div');
         msgDiv.className = 'message assistant';
@@ -342,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', playOnInteraction);
 
     // Update Avatar Emotion and Status based on text content
-    function updateAvatarEmotion(text) {
+    function updateAvatarEmotion(text, willPlayVoice = false) {
         if (!videoViewport || !characterVideo) return;
         
         // Comprehensive tsundere and dynamic sentiment matching
@@ -357,37 +357,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const thinkingRegex = /\.\.\.|\?|hmm|thinking|wonder|curious|ponder/i;
         
         let emotion = 'neutral';
-        let emoji = '';
         let status = 'Idle';
         
         // Select appropriate emotion
         if (sadRegex.test(text)) {
             emotion = 'sad';
-            emoji = '💧';
             status = 'Sad';
         } else if (annoyedIntenseRegex.test(text)) {
             emotion = 'annoyed';
-            emoji = '💢';
             status = 'Angry';
         } else if (annoyedRegex.test(text)) {
             emotion = 'annoyed';
-            emoji = '💢';
             status = 'Annoyed';
         } else if (happyGreetingRegex.test(text)) {
             emotion = 'happy';
-            emoji = '👋';
             status = 'Greeting';
         } else if (happyExcitedRegex.test(text)) {
             emotion = 'happy';
-            emoji = '✨';
             status = 'Excited';
         } else if (happyRegex.test(text)) {
             emotion = 'happy';
-            emoji = '💖';
             status = 'Happy';
         } else if (thinkingRegex.test(text)) {
             emotion = 'thinking';
-            emoji = '💭';
             status = 'Thinking';
         }
         
@@ -403,6 +395,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         videoViewport.className = `video-viewport ${emotion}`;
+
+        // Defer video swap and status badge to voice player event handlers if audio will play
+        if (willPlayVoice) return;
+        
         charStatus.textContent = status;
         
         // Switch to the correct idle video when not speaking
