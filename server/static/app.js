@@ -285,7 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'idle_annoyed': '/em/Woman_crosses_arms_frustrated_202607192152.mp4',
         'idle_sad': '/em/Woman_covers_face_distressed_crying_202607192149.mp4',
         'idle_thinking': '/em/Woman_thinking_looking_202607192148.mp4',
-        'idle_thinking_active': '/em/Woman_tapping_temple_thinking_202607192148.mp4',
+        'idle_thinking_active': '/em/Woman_thinking_looking_202607192148.mp4',
 
         // Speaking loops
         'speak_neutral': '/em/Woman_explaining_complex_idea_202607192146.mp4',
@@ -295,13 +295,10 @@ document.addEventListener('DOMContentLoaded', () => {
         'speak_sad': '/em/Woman_wipes_tear_sad_expression_202607192150.mp4'
     };
 
-    const thinkingVideos = [
-        '/em/Woman_thinking_looking_202607192148.mp4',
-        '/em/Woman_tapping_temple_thinking_202607192148.mp4'
-    ];
+    const thinkingVideo = '/em/Woman_thinking_looking_202607192148.mp4';
 
-    function getRandomThinkingVideo() {
-        return thinkingVideos[Math.floor(Math.random() * thinkingVideos.length)];
+    function getThinkingVideo() {
+        return thinkingVideo;
     }
 
     let isSpeaking = false;
@@ -407,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!videoMap[idleKey]) idleKey = `idle_${emotion}`;
             
             if (emotion === 'thinking') {
-                setAvatarVideo(getRandomThinkingVideo());
+                setAvatarVideo(getThinkingVideo());
             } else {
                 setAvatarVideo(videoMap[idleKey] || videoMap['idle_neutral']);
             }
@@ -502,7 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (videoViewport) {
             videoViewport.className = 'video-viewport thinking';
         }
-        setAvatarVideo(getRandomThinkingVideo());
+        setAvatarVideo(getThinkingVideo());
 
         try {
             const res = await fetch('/api/chat', {
