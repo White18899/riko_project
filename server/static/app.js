@@ -16,6 +16,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const resetHistoryBtn = document.getElementById('reset-history-btn');
     const voicePlayer = document.getElementById('voice-player');
     const factsList = document.getElementById('long-term-facts');
+    
+    // Avatar Elements
+    const avatarWrapper = document.getElementById('avatar-wrapper');
+    const charStatus = document.getElementById('char-status');
+    const emojiIndicator = document.getElementById('emoji-indicator');
+    let currentEmotion = 'neutral';
 
     // Status Badges
     const statusOllama = document.getElementById('status-ollama');
@@ -226,6 +232,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 6. Append Assistant Message (supporting reasoning and play button)
     function appendAssistantMessage(text, thinking, audioUrl) {
+        // Update Riko's face expressions and emotion dynamically
+        updateAvatarEmotion(text);
+
         const msgDiv = document.createElement('div');
         msgDiv.className = 'message assistant';
         
@@ -264,6 +273,69 @@ document.addEventListener('DOMContentLoaded', () => {
         if (audioUrl) {
             playAudio(audioUrl);
         }
+    }
+
+    // Update Avatar Emotion and Status based on text content
+    function updateAvatarEmotion(text) {
+        if (!avatarWrapper) return;
+        
+        // Simple tsundere/personality emotion detection rules
+        const annoyedRegex = /[😤💢😡👿🤬]|ugh|boring|goldfish|annoyed|bothering|stupid|idiot|stop/i;
+        const happyRegex = /[😊✨💖💕❤️😍🌟🎉🌸🥰]|exciting|happy|thrilled|senpai/i;
+        const thinkingRegex = /\.\.\.|\?|hmm|thinking|wonder/i;
+        
+        let emotion = 'neutral';
+        let emoji = '';
+        let status = 'Idle';
+        
+        if (annoyedRegex.test(text)) {
+            emotion = 'annoyed';
+            emoji = '💢';
+            status = 'Annoyed';
+        } else if (happyRegex.test(text)) {
+            emotion = 'happy';
+            emoji = '✨';
+            status = 'Happy';
+        } else if (thinkingRegex.test(text)) {
+            emotion = 'thinking';
+            emoji = '💭';
+            status = 'Thinking';
+        }
+        
+        currentEmotion = emotion;
+        avatarWrapper.className = `avatar-wrapper ${emotion}`;
+        charStatus.textContent = status;
+        
+        if (emoji) {
+            emojiIndicator.textContent = emoji;
+            emojiIndicator.style.opacity = '1';
+            emojiIndicator.style.transform = 'scale(1)';
+        } else {
+            emojiIndicator.style.opacity = '0';
+            emojiIndicator.style.transform = 'scale(0.5)';
+        }
+    }
+
+    // Voice player audio listeners for lips sync/mouth movement
+    if (voicePlayer) {
+        voicePlayer.addEventListener('play', () => {
+            if (avatarWrapper) {
+                avatarWrapper.classList.add('speaking');
+                charStatus.textContent = 'Speaking';
+            }
+        });
+        voicePlayer.addEventListener('pause', () => {
+            if (avatarWrapper) {
+                avatarWrapper.classList.remove('speaking');
+                charStatus.textContent = currentEmotion.charAt(0).toUpperCase() + currentEmotion.slice(1);
+            }
+        });
+        voicePlayer.addEventListener('ended', () => {
+            if (avatarWrapper) {
+                avatarWrapper.classList.remove('speaking');
+                charStatus.textContent = currentEmotion.charAt(0).toUpperCase() + currentEmotion.slice(1);
+            }
+        });
     }
 
     // 7. Append System Message

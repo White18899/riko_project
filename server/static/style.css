@@ -1,24 +1,24 @@
-/* Theme Variables */
+/* Theme Variables - Minimal Black & White */
 :root {
-    --bg-dark: #09090b;
-    --bg-surface: rgba(20, 20, 25, 0.6);
-    --border-color: rgba(255, 255, 255, 0.08);
-    --border-hover: rgba(147, 51, 234, 0.3);
+    --bg-dark: #000000;
+    --bg-surface: #0a0a0a;
+    --border-color: #1a1a1a;
+    --border-hover: #ffffff;
     
-    --text-primary: #f4f4f5;
-    --text-secondary: #a1a1aa;
-    --text-muted: #71717a;
+    --text-primary: #ffffff;
+    --text-secondary: #888888;
+    --text-muted: #444444;
     
-    --color-primary: #d946ef; /* Magenta/Pink */
-    --color-secondary: #8b5cf6; /* Violet */
-    --gradient-brand: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
-    --glow-shadow: 0 0 25px rgba(217, 70, 239, 0.2);
+    --color-primary: #ffffff;
+    --color-secondary: #888888;
+    --gradient-brand: linear-gradient(135deg, #ffffff, #888888);
+    --glow-shadow: 0 0 10px rgba(255, 255, 255, 0.02);
     
-    --font-sans: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
-    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
     
-    --status-online: #10b981;
-    --status-offline: #ef4444;
+    --status-online: #ffffff;
+    --status-offline: #222222;
 }
 
 /* Global Reset */
@@ -27,11 +27,11 @@
     margin: 0;
     padding: 0;
     scrollbar-width: thin;
-    scrollbar-color: rgba(147, 51, 234, 0.2) transparent;
+    scrollbar-color: #333 transparent;
 }
 
 ::-webkit-scrollbar {
-    width: 6px;
+    width: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -39,12 +39,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-    background: rgba(147, 51, 234, 0.2);
-    border-radius: 10px;
+    background: #222;
+    border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(147, 51, 234, 0.4);
+    background: #444;
 }
 
 body {
@@ -54,10 +54,7 @@ body {
     min-height: 100vh;
     overflow: hidden;
     position: relative;
-    /* Soft ambient background glow */
-    background-image: 
-        radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.05) 0%, transparent 40%),
-        radial-gradient(circle at 90% 80%, rgba(217, 70, 239, 0.05) 0%, transparent 40%);
+    background-image: none;
 }
 
 .app-container {
@@ -672,6 +669,12 @@ body {
 }
 
 /* Responsive adjustments */
+@media (max-width: 1024px) {
+    .face-container {
+        display: none; /* Hide face container on smaller screens */
+    }
+}
+
 @media (max-width: 768px) {
     .settings-drawer {
         width: 100vw;
@@ -686,3 +689,190 @@ body {
         max-width: 90%;
     }
 }
+
+/* Riko Face Panel Styling (Split Layout on Right) */
+.face-container {
+    width: 380px;
+    border-left: 1px solid var(--border-color);
+    background: #050505;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    position: relative;
+}
+
+.face-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    width: 100%;
+}
+
+.avatar-wrapper {
+    position: relative;
+    width: 250px;
+    height: 250px;
+    border-radius: 50%;
+    border: 1px solid #222;
+    overflow: hidden;
+    background: #000;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.03);
+    transition: all 0.3s ease;
+}
+
+.avatar-wrapper:hover {
+    border-color: #444;
+    box-shadow: 0 0 25px rgba(255, 255, 255, 0.06);
+}
+
+.character-avatar {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: grayscale(100%) contrast(1.1) brightness(0.85);
+    transition: all 0.3s ease;
+}
+
+/* Mouth overlay positioned exactly on Riko's mouth */
+.mouth-overlay {
+    position: absolute;
+    top: 55.4%;
+    left: 53.6%;
+    width: 8px;
+    height: 2px;
+    background: #111;
+    transform: translate(-50%, -50%);
+    border-radius: 1px;
+    transition: all 0.15s ease-in-out;
+}
+
+/* Blush overlay for angry/tsundere expressions */
+.blush-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 50%, rgba(255, 0, 0, 0.12) 0%, transparent 60%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+/* Float symbols like 💢 or ✨ next to Riko's head */
+.emoji-indicator {
+    position: absolute;
+    top: 15%;
+    right: 15%;
+    font-size: 1.75rem;
+    opacity: 0;
+    transform: scale(0.5);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    pointer-events: none;
+}
+
+/* Character status tags */
+.character-info {
+    text-align: center;
+}
+
+.char-name {
+    font-family: var(--font-sans);
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+    letter-spacing: -0.3px;
+}
+
+.char-status {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Lip sync talking animation */
+@keyframes speak-lip-sync {
+    0% { height: 1.5px; border-radius: 1px; }
+    50% { height: 6px; border-radius: 50%; }
+    100% { height: 1.5px; border-radius: 1px; }
+}
+
+.avatar-wrapper.speaking .mouth-overlay {
+    animation: speak-lip-sync 0.16s infinite alternate ease-in-out;
+    background: #000;
+}
+
+/* Emotional Expression classes on avatar-wrapper */
+.avatar-wrapper.happy .mouth-overlay {
+    border-radius: 0 0 4px 4px;
+    height: 3px;
+    background: transparent;
+    border-bottom: 1.5px solid #000;
+}
+
+.avatar-wrapper.annoyed .mouth-overlay {
+    width: 10px;
+    height: 1.5px;
+    background: #000;
+}
+
+.avatar-wrapper.annoyed .blush-overlay {
+    opacity: 1;
+}
+
+.avatar-wrapper.thinking .mouth-overlay {
+    width: 5px;
+    height: 1.5px;
+}
+
+/* Minimalist Overrides for list items and tags */
+.facts-list li {
+    background: #050505;
+    border: 1px solid #111;
+    color: #888;
+}
+
+.facts-list li:hover {
+    color: #fff;
+    border-color: #222;
+}
+
+.message.user .message-content {
+    background: #ffffff;
+    color: #000000;
+    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.05);
+}
+
+.message.assistant .message-content {
+    border-left: 2px solid #ffffff;
+}
+
+.btn {
+    border-radius: 4px;
+}
+
+.primary-btn {
+    background: #ffffff;
+    color: #000000;
+}
+
+.primary-btn:hover {
+    background: #cccccc;
+}
+
+.secondary-btn {
+    border-color: #222;
+    color: #888;
+}
+
+.secondary-btn:hover {
+    background: #111;
+    border-color: #444;
+    color: #fff;
+}
+
