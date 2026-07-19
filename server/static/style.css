@@ -735,18 +735,7 @@ body {
     transition: all 0.3s ease;
 }
 
-/* Mouth overlay positioned exactly on Riko's mouth */
-.mouth-overlay {
-    position: absolute;
-    top: 55.4%;
-    left: 53.6%;
-    width: 8px;
-    height: 2px;
-    background: #111;
-    transform: translate(-50%, -50%);
-    border-radius: 1px;
-    transition: all 0.15s ease-in-out;
-}
+
 
 /* Blush overlay for angry/tsundere expressions */
 .blush-overlay {
@@ -795,39 +784,11 @@ body {
     letter-spacing: 1px;
 }
 
-/* Lip sync talking animation */
-@keyframes speak-lip-sync {
-    0% { height: 1.5px; border-radius: 1px; }
-    50% { height: 6px; border-radius: 50%; }
-    100% { height: 1.5px; border-radius: 1px; }
-}
 
-.avatar-wrapper.speaking .mouth-overlay {
-    animation: speak-lip-sync 0.16s infinite alternate ease-in-out;
-    background: #000;
-}
 
 /* Emotional Expression classes on avatar-wrapper */
-.avatar-wrapper.happy .mouth-overlay {
-    border-radius: 0 0 4px 4px;
-    height: 3px;
-    background: transparent;
-    border-bottom: 1.5px solid #000;
-}
-
-.avatar-wrapper.annoyed .mouth-overlay {
-    width: 10px;
-    height: 1.5px;
-    background: #000;
-}
-
 .avatar-wrapper.annoyed .blush-overlay {
     opacity: 1;
-}
-
-.avatar-wrapper.thinking .mouth-overlay {
-    width: 5px;
-    height: 1.5px;
 }
 
 /* Minimalist Overrides for list items and tags */
