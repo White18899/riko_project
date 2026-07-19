@@ -307,9 +307,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function setAvatarVideo(src) {
         if (!characterVideo) return;
         
-        // Compare with full URL resolved source to prevent unnecessary re-swaps
+        // Compare with full URL resolved source
         const absoluteSrc = new URL(src, window.location.href).href;
-        if (characterVideo.src === absoluteSrc) return;
+        if (characterVideo.src === absoluteSrc) {
+            // Guarantee video is actively playing if source is already set
+            if (characterVideo.paused) {
+                characterVideo.muted = true;
+                characterVideo.play().catch(err => console.warn("Autoplay resume failed:", err));
+            }
+            return;
+        }
         
         currentVideoSrc = src;
         
