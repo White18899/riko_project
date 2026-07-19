@@ -295,12 +295,21 @@ document.addEventListener('DOMContentLoaded', () => {
         'speak_sad': '/em/Woman_wipes_tear_sad_expression_202607192150.mp4'
     };
 
+    const thinkingVideos = [
+        '/em/Woman_thinking_looking_202607192148.mp4',
+        '/em/Woman_tapping_temple_thinking_202607192148.mp4'
+    ];
+
+    function getRandomThinkingVideo() {
+        return thinkingVideos[Math.floor(Math.random() * thinkingVideos.length)];
+    }
+
     let isSpeaking = false;
     let speakEmotion = 'neutral';
     let currentVideoSrc = '';
     let videoTimeout = null;
 
-    // Smoothly transition video sources with a fade transition (race-condition safe)
+    // Smoothly transition video sources with a fade transition (race-condition & black-screen safe)
     function setAvatarVideo(src) {
         if (!characterVideo) return;
         
@@ -324,14 +333,26 @@ document.addEventListener('DOMContentLoaded', () => {
             characterVideo.src = src;
             characterVideo.muted = true; // Autoplay compliance
             characterVideo.load();
+            
+            // Reveal video ONLY when frame is ready to play to prevent black screen flashes
+            const revealVideo = () => {
+                characterVideo.style.opacity = '1';
+                characterVideo.removeEventListener('loadeddata', revealVideo);
+                characterVideo.removeEventListener('canplay', revealVideo);
+            };
+            
+            characterVideo.addEventListener('loadeddata', revealVideo);
+            characterVideo.addEventListener('canplay', revealVideo);
+            
             characterVideo.play().catch(err => {
                 console.warn("Autoplay failed:", err);
+                revealVideo();
             });
             
-            // 3. Fade back in
-            characterVideo.style.opacity = '1';
+            // Backup fallback to reveal video after 400ms max
+            setTimeout(revealVideo, 400);
             videoTimeout = null;
-        }, 300); // Matches transition time in CSS (0.3s)
+        }, 200);
     }
 
     // Fallback: Start playing video on first user interaction if blocked by browser autoplay policy
@@ -415,7 +436,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isSpeaking) {
             let idleKey = `idle_${speakEmotion}`;
             if (!videoMap[idleKey]) idleKey = `idle_${emotion}`;
-            setAvatarVideo(videoMap[idleKey] || videoMap['idle_neutral']);
+            
+            if (emotion === 'thinking') {
+                setAvatarVideo(getRandomThinkingVideo());
+            } else {
+                setAvatarVideo(videoMap[idleKey] || videoMap['idle_neutral']);
+            }
         }
         
     }
@@ -507,7 +533,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (videoViewport) {
             videoViewport.className = 'video-viewport thinking';
         }
-        setAvatarVideo(videoMap['idle_thinking_active']);
+        setAvatarVideo(getRandomThinkingVideo());
 
         try {
             const res = await fetch('/api/chat', {
