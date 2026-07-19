@@ -306,53 +306,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let isSpeaking = false;
     let speakEmotion = 'neutral';
-    let currentVideoSrc = '';
-    let videoTimeout = null;
-
-    // Smoothly transition video sources with a fade transition (race-condition & black-screen safe)
+    // Instant, black-screen-proof video source swapper
     function setAvatarVideo(src) {
         if (!characterVideo) return;
         
-        // Compare with full URL resolved source to prevent ignoring updates
+        // Compare with full URL resolved source to prevent unnecessary re-swaps
         const absoluteSrc = new URL(src, window.location.href).href;
-        if (characterVideo.src === absoluteSrc && currentVideoSrc === src) return;
+        if (characterVideo.src === absoluteSrc) return;
         
         currentVideoSrc = src;
         
-        // Clear any pending transition timeout to resolve overlap race conditions
-        if (videoTimeout) {
-            clearTimeout(videoTimeout);
-            videoTimeout = null;
-        }
-        
-        // 1. Fade out current video
-        characterVideo.style.opacity = '0';
-        
-        // 2. Set timeout to change source after fade-out transition complete
-        videoTimeout = setTimeout(() => {
-            characterVideo.src = src;
-            characterVideo.muted = true; // Autoplay compliance
-            characterVideo.load();
-            
-            // Reveal video ONLY when frame is ready to play to prevent black screen flashes
-            const revealVideo = () => {
-                characterVideo.style.opacity = '1';
-                characterVideo.removeEventListener('loadeddata', revealVideo);
-                characterVideo.removeEventListener('canplay', revealVideo);
-            };
-            
-            characterVideo.addEventListener('loadeddata', revealVideo);
-            characterVideo.addEventListener('canplay', revealVideo);
-            
-            characterVideo.play().catch(err => {
-                console.warn("Autoplay failed:", err);
-                revealVideo();
-            });
-            
-            // Backup fallback to reveal video after 400ms max
-            setTimeout(revealVideo, 400);
-            videoTimeout = null;
-        }, 200);
+        // Directly update source and play with muted compliance
+        characterVideo.src = src;
+        characterVideo.muted = true;
+        characterVideo.play().catch(err => {
+            console.warn("Autoplay failed:", err);
+        });
     }
 
     // Fallback: Start playing video on first user interaction if blocked by browser autoplay policy
