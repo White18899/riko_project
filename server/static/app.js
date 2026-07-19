@@ -310,8 +310,9 @@ document.addEventListener('DOMContentLoaded', () => {
         characterVideo.style.opacity = '0';
         
         setTimeout(() => {
-            // 2. Change source and load/play
+            // 2. Change source, force mute for browser compatibility, and load/play
             characterVideo.src = src;
+            characterVideo.muted = true; // Ensure muted autoplay compliance
             characterVideo.load();
             characterVideo.play().catch(err => {
                 console.warn("Autoplay was blocked or video play failed:", err);
@@ -321,6 +322,19 @@ document.addEventListener('DOMContentLoaded', () => {
             characterVideo.style.opacity = '1';
         }, 300); // Matches transition time in CSS (0.3s)
     }
+
+    // Fallback: Start playing video on first user interaction if blocked by browser autoplay policy
+    const playOnInteraction = () => {
+        if (characterVideo && characterVideo.paused) {
+            characterVideo.play().catch(err => {
+                console.log("First interaction play attempt failed:", err);
+            });
+        }
+        document.removeEventListener('click', playOnInteraction);
+        document.removeEventListener('keydown', playOnInteraction);
+    };
+    document.addEventListener('click', playOnInteraction);
+    document.addEventListener('keydown', playOnInteraction);
 
     // Update Avatar Emotion and Status based on text content
     function updateAvatarEmotion(text) {
