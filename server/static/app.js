@@ -19,9 +19,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Avatar Elements
     const avatarWrapper = document.getElementById('avatar-wrapper');
+    const characterAvatar = document.getElementById('character-avatar');
     const charStatus = document.getElementById('char-status');
     const emojiIndicator = document.getElementById('emoji-indicator');
     let currentEmotion = 'neutral';
+    let speechInterval = null;
 
     // Status Badges
     const statusOllama = document.getElementById('status-ollama');
@@ -277,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Update Avatar Emotion and Status based on text content
     function updateAvatarEmotion(text) {
-        if (!avatarWrapper) return;
+        if (!avatarWrapper || !characterAvatar) return;
         
         // Simple tsundere/personality emotion detection rules
         const annoyedRegex = /[😤💢😡👿🤬]|ugh|boring|goldfish|annoyed|bothering|stupid|idiot|stop/i;
@@ -306,6 +308,9 @@ document.addEventListener('DOMContentLoaded', () => {
         avatarWrapper.className = `avatar-wrapper ${emotion}`;
         charStatus.textContent = status;
         
+        // Set base image for this expression
+        characterAvatar.src = `/static/character_${emotion}.png`;
+        
         if (emoji) {
             emojiIndicator.textContent = emoji;
             emojiIndicator.style.opacity = '1';
@@ -316,24 +321,49 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Dynamic speaking animation (cycling frames)
+    function startSpeakingAnimation() {
+        if (speechInterval) clearInterval(speechInterval);
+        
+        let isMouthOpen = false;
+        const baseSrc = `/static/character_${currentEmotion}.png`;
+        const openSrc = '/static/character_speaking.png';
+        
+        speechInterval = setInterval(() => {
+            isMouthOpen = !isMouthOpen;
+            characterAvatar.src = isMouthOpen ? openSrc : baseSrc;
+        }, 180); // Cycle frames every 180ms
+    }
+
+    function stopSpeakingAnimation() {
+        if (speechInterval) {
+            clearInterval(speechInterval);
+            speechInterval = null;
+        }
+        characterAvatar.src = `/static/character_${currentEmotion}.png`;
+    }
+
     // Voice player audio listeners for lips sync/mouth movement
     if (voicePlayer) {
         voicePlayer.addEventListener('play', () => {
             if (avatarWrapper) {
                 avatarWrapper.classList.add('speaking');
                 charStatus.textContent = 'Speaking';
+                startSpeakingAnimation();
             }
         });
         voicePlayer.addEventListener('pause', () => {
             if (avatarWrapper) {
                 avatarWrapper.classList.remove('speaking');
                 charStatus.textContent = currentEmotion.charAt(0).toUpperCase() + currentEmotion.slice(1);
+                stopSpeakingAnimation();
             }
         });
         voicePlayer.addEventListener('ended', () => {
             if (avatarWrapper) {
                 avatarWrapper.classList.remove('speaking');
                 charStatus.textContent = currentEmotion.charAt(0).toUpperCase() + currentEmotion.slice(1);
+                stopSpeakingAnimation();
             }
         });
     }
