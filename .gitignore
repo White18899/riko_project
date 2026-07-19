@@ -1,0 +1,9 @@
+.venv/
+audio/
+__pycache__/
+*.pyc
+chat_history.json
+long_term_memory.json
+output.wav
+.DS_Store
+*.log

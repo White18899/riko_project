@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Riko - Local AI Companion</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <div class="logo-icon">🌸</div>
+                <div class="logo-text">
+                    <h1>Riko</h1>
+                    <span class="sub-logo">Local AI Companion</span>
+                </div>
+            </div>
+            
+            <div class="status-indicators" id="service-status">
+                <span class="status-badge" id="status-ollama" title="Ollama LLM Server">
+                    <i data-lucide="brain"></i> LLM
+                </span>
+                <span class="status-badge" id="status-tts" title="GPT-SoVITS TTS Server">
+                    <i data-lucide="volume-2"></i> TTS
+                </span>
+                <span class="status-badge" id="status-whisper" title="Whisper Speech-to-Text">
+                    <i data-lucide="mic"></i> ASR
+                </span>
+            </div>
+
+            <button class="icon-btn" id="toggle-settings-btn" title="Open Settings">
+                <i data-lucide="settings"></i>
+            </button>
+        </header>
+
+        <!-- Main Body Layout -->
+        <div class="main-layout">
+            <!-- Chat Container -->
+            <section class="chat-container">
+                <div class="chat-messages" id="chat-messages">
+                    <div class="message system">
+                        <div class="message-content">
+                            <span>Hello, senpai! Welcome back. Speak to me or type a message below.</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input Controls -->
+                <div class="input-controls">
+                    <!-- Typing Indicator -->
+                    <div class="typing-indicator" id="typing-indicator">
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                        <span class="indicator-text">Riko is thinking...</span>
+                    </div>
+
+                    <!-- Input Bar -->
+                    <div class="input-bar">
+                        <button class="mic-btn" id="mic-btn" title="Click to Record">
+                            <i data-lucide="mic" id="mic-icon"></i>
+                            <div class="pulse-wave" id="mic-wave"></div>
+                        </button>
+                        <input type="text" id="chat-input" placeholder="Type a message, senpai..." autocomplete="off">
+                        <button class="send-btn" id="send-btn" title="Send message">
+                            <i data-lucide="send"></i>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sidebar / Settings Drawer -->
+            <aside class="settings-drawer" id="settings-drawer">
+                <div class="drawer-header">
+                    <h2>Configuration</h2>
+                    <button class="icon-btn" id="close-settings-btn" title="Close Settings">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+                
+                <div class="drawer-content">
+                    <div class="tab-buttons">
+                        <button class="tab-btn active" data-tab="tab-persona">Persona</button>
+                        <button class="tab-btn" data-tab="tab-system">System</button>
+                        <button class="tab-btn" data-tab="tab-memory">Memory</button>
+                    </div>
+
+                    <!-- Tab: Persona Settings -->
+                    <div class="tab-panel active" id="tab-persona">
+                        <div class="input-group">
+                            <label for="system-prompt">Character Personality (System Prompt)</label>
+                            <textarea id="system-prompt" rows="5"></textarea>
+                        </div>
+                        
+                        <div class="input-group">
+                            <label for="ref-audio-path">TTS Reference Audio File Path</label>
+                            <input type="text" id="ref-audio-path">
+                        </div>
+
+                        <div class="input-group">
+                            <label for="prompt-text">TTS Reference Audio Script</label>
+                            <textarea id="prompt-text" rows="3"></textarea>
+                        </div>
+
+                        <div class="row-group">
+                            <div class="input-group">
+                                <label for="text-lang">Text Language</label>
+                                <select id="text-lang">
+                                    <option value="en">English (en)</option>
+                                    <option value="zh">Chinese (zh)</option>
+                                    <option value="ja">Japanese (ja)</option>
+                                </select>
+                            </div>
+                            <div class="input-group">
+                                <label for="prompt-lang">Prompt Language</label>
+                                <select id="prompt-lang">
+                                    <option value="en">English (en)</option>
+                                    <option value="zh">Chinese (zh)</option>
+                                    <option value="ja">Japanese (ja)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab: System Settings -->
+                    <div class="tab-panel" id="tab-system">
+                        <div class="input-group">
+                            <label for="ollama-host">Ollama API Host</label>
+                            <input type="text" id="ollama-host">
+                        </div>
+
+                        <div class="input-group">
+                            <label for="model-name">Ollama LLM Model</label>
+                            <input type="text" id="model-name">
+                        </div>
+
+                        <div class="input-group">
+                            <label for="max-turns">Max Short-Term Turns</label>
+                            <input type="number" id="max-turns" min="1" max="50">
+                        </div>
+
+                        <div class="input-group">
+                            <label for="recording-mode">Audio Recording Mode</label>
+                            <select id="recording-mode">
+                                <option value="vad">Voice Activity Detection (VAD)</option>
+                                <option value="manual">Manual Push-To-Talk (PTT)</option>
+                            </select>
+                        </div>
+
+                        <div class="row-group">
+                            <div class="input-group">
+                                <label for="vad-threshold">VAD Threshold</label>
+                                <input type="number" id="vad-threshold" step="0.005" min="0.001" max="0.5">
+                            </div>
+                            <div class="input-group">
+                                <label for="vad-silence">VAD Silence Duration (s)</label>
+                                <input type="number" id="vad-silence" step="0.1" min="0.5" max="5.0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab: Memory Facts -->
+                    <div class="tab-panel" id="tab-memory">
+                        <h3>Durable Facts Consolidated</h3>
+                        <p class="memory-subtitle">These consolidated facts are automatically injected into the system prompt to build long-term memory continuity.</p>
+                        <ul class="facts-list" id="long-term-facts">
+                            <li class="empty-fact">No consolidated memories saved yet, senpai.</li>
+                        </ul>
+                    </div>
+
+                    <div class="drawer-footer">
+                        <button class="btn secondary-btn" id="reset-history-btn">Clear Chat History</button>
+                        <button class="btn primary-btn" id="save-config-btn">Save Changes</button>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- Hidden Audio Player -->
+    <audio id="voice-player" style="display: none;"></audio>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
