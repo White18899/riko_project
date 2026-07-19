@@ -298,27 +298,39 @@ document.addEventListener('DOMContentLoaded', () => {
     let isSpeaking = false;
     let speakEmotion = 'neutral';
     let currentVideoSrc = '';
+    let videoTimeout = null;
 
-    // Smoothly transition video sources with a fade transition
+    // Smoothly transition video sources with a fade transition (race-condition safe)
     function setAvatarVideo(src) {
-        if (!characterVideo || currentVideoSrc === src) return;
+        if (!characterVideo) return;
+        
+        // Compare with full URL resolved source to prevent ignoring updates
+        const absoluteSrc = new URL(src, window.location.href).href;
+        if (characterVideo.src === absoluteSrc && currentVideoSrc === src) return;
         
         currentVideoSrc = src;
+        
+        // Clear any pending transition timeout to resolve overlap race conditions
+        if (videoTimeout) {
+            clearTimeout(videoTimeout);
+            videoTimeout = null;
+        }
         
         // 1. Fade out current video
         characterVideo.style.opacity = '0';
         
-        setTimeout(() => {
-            // 2. Change source, force mute for browser compatibility, and load/play
+        // 2. Set timeout to change source after fade-out transition complete
+        videoTimeout = setTimeout(() => {
             characterVideo.src = src;
-            characterVideo.muted = true; // Ensure muted autoplay compliance
+            characterVideo.muted = true; // Autoplay compliance
             characterVideo.load();
             characterVideo.play().catch(err => {
-                console.warn("Autoplay was blocked or video play failed:", err);
+                console.warn("Autoplay failed:", err);
             });
             
             // 3. Fade back in
             characterVideo.style.opacity = '1';
+            videoTimeout = null;
         }, 300); // Matches transition time in CSS (0.3s)
     }
 
