@@ -21,7 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const videoViewport = document.getElementById('video-viewport');
     const characterVideo = document.getElementById('character-video');
     const charStatus = document.getElementById('char-status');
-    const emojiIndicator = document.getElementById('emoji-indicator');
     let currentEmotion = 'neutral';
 
     // Status Badges
@@ -407,15 +406,6 @@ document.addEventListener('DOMContentLoaded', () => {
             setAvatarVideo(videoMap[idleKey] || videoMap['idle_neutral']);
         }
         
-        // Setup emoji indicator bubble overlay
-        if (emoji) {
-            emojiIndicator.textContent = emoji;
-            emojiIndicator.style.opacity = '1';
-            emojiIndicator.style.transform = 'scale(1)';
-        } else {
-            emojiIndicator.style.opacity = '0';
-            emojiIndicator.style.transform = 'scale(0.5)';
-        }
     }
 
     // Voice player audio listeners for dynamic video sync
@@ -504,7 +494,6 @@ document.addEventListener('DOMContentLoaded', () => {
         charStatus.textContent = 'Thinking';
         if (videoViewport) {
             videoViewport.className = 'video-viewport thinking';
-            emojiIndicator.style.opacity = '0';
         }
         setAvatarVideo(videoMap['idle_thinking_active']);
 

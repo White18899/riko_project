@@ -779,18 +779,7 @@ body {
     z-index: 5;
 }
 
-/* Float symbols like 💢 or ✨ next to Riko's head over the video */
-.emoji-indicator {
-    position: absolute;
-    top: 15%;
-    right: 15%;
-    font-size: 2.2rem;
-    opacity: 0;
-    transform: scale(0.5);
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    pointer-events: none;
-    z-index: 5;
-}
+
 
 /* State-based modifications */
 .video-viewport.annoyed .blush-overlay {
