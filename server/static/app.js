@@ -18,12 +18,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const factsList = document.getElementById('long-term-facts');
     
     // Avatar Elements
-    const avatarWrapper = document.getElementById('avatar-wrapper');
-    const characterAvatar = document.getElementById('character-avatar');
+    const videoViewport = document.getElementById('video-viewport');
+    const characterVideo = document.getElementById('character-video');
     const charStatus = document.getElementById('char-status');
     const emojiIndicator = document.getElementById('emoji-indicator');
     let currentEmotion = 'neutral';
-    let speechInterval = null;
 
     // Status Badges
     const statusOllama = document.getElementById('status-ollama');
@@ -277,26 +276,95 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Video mapping config utilizing all 13 videos in the /em directory
+    const videoMap = {
+        // Idle loops
+        'idle_neutral': '/em/Woman_resting_idle_202607192147.mp4',
+        'idle_happy': '/em/Woman_smiles_hand_over_heart_202607192152.mp4',
+        'idle_happy_excited': '/em/Character_grins_flashes_peace_sign_202607192153.mp4',
+        'idle_happy_greeting': '/em/Character_smiles_and_waves_202607192153.mp4',
+        'idle_annoyed': '/em/Woman_crosses_arms_frustrated_202607192152.mp4',
+        'idle_sad': '/em/Woman_covers_face_distressed_crying_202607192149.mp4',
+        'idle_thinking': '/em/Woman_thinking_looking_202607192148.mp4',
+        'idle_thinking_active': '/em/Woman_tapping_temple_thinking_202607192148.mp4',
+
+        // Speaking loops
+        'speak_neutral': '/em/Woman_explaining_complex_idea_202607192146.mp4',
+        'speak_happy': '/em/Character_laughing_on_balcony_202607192153.mp4',
+        'speak_annoyed': '/em/Woman_speaking_with_angry_expression_202607192146.mp4',
+        'speak_annoyed_intense': '/em/Character_points_finger_angrily_202607192152.mp4',
+        'speak_sad': '/em/Woman_wipes_tear_sad_expression_202607192150.mp4'
+    };
+
+    let isSpeaking = false;
+    let speakEmotion = 'neutral';
+    let currentVideoSrc = '';
+
+    // Smoothly transition video sources with a fade transition
+    function setAvatarVideo(src) {
+        if (!characterVideo || currentVideoSrc === src) return;
+        
+        currentVideoSrc = src;
+        
+        // 1. Fade out current video
+        characterVideo.style.opacity = '0';
+        
+        setTimeout(() => {
+            // 2. Change source and load/play
+            characterVideo.src = src;
+            characterVideo.load();
+            characterVideo.play().catch(err => {
+                console.warn("Autoplay was blocked or video play failed:", err);
+            });
+            
+            // 3. Fade back in
+            characterVideo.style.opacity = '1';
+        }, 300); // Matches transition time in CSS (0.3s)
+    }
+
     // Update Avatar Emotion and Status based on text content
     function updateAvatarEmotion(text) {
-        if (!avatarWrapper || !characterAvatar) return;
+        if (!videoViewport || !characterVideo) return;
         
-        // Simple tsundere/personality emotion detection rules
-        const annoyedRegex = /[😤💢😡👿🤬]|ugh|boring|goldfish|annoyed|bothering|stupid|idiot|stop/i;
-        const happyRegex = /[😊✨💖💕❤️😍🌟🎉🌸🥰]|exciting|happy|thrilled|senpai/i;
-        const thinkingRegex = /\.\.\.|\?|hmm|thinking|wonder/i;
+        // Comprehensive tsundere and dynamic sentiment matching
+        const annoyedIntenseRegex = /shut up|hate you|go away|idiot|baka|annoyed|bothering|stupid|jerk|stop/i;
+        const annoyedRegex = /[😤💢😡👿🤬]|ugh|boring|goldfish|tsundere|irritated|huff/i;
+        
+        const happyGreetingRegex = /\b(hi|hello|hey|welcome|greet|greetings|morning)\b/i;
+        const happyExcitedRegex = /excited|thrilled|great|wonderful|fantastic|yay|awesome|amazing/i;
+        const happyRegex = /[😊✨💖💕❤️😍🌟🎉🌸🥰]|happy|love|smile|cute|senpai|thank/i;
+        
+        const sadRegex = /[😢😭💔😰🤧😿]|sad|cry|hurt|tears|sorry|lonely|depressed|unhappy|distressed/i;
+        const thinkingRegex = /\.\.\.|\?|hmm|thinking|wonder|curious|ponder/i;
         
         let emotion = 'neutral';
         let emoji = '';
         let status = 'Idle';
         
-        if (annoyedRegex.test(text)) {
+        // Select appropriate emotion
+        if (sadRegex.test(text)) {
+            emotion = 'sad';
+            emoji = '💧';
+            status = 'Sad';
+        } else if (annoyedIntenseRegex.test(text)) {
+            emotion = 'annoyed';
+            emoji = '💢';
+            status = 'Angry';
+        } else if (annoyedRegex.test(text)) {
             emotion = 'annoyed';
             emoji = '💢';
             status = 'Annoyed';
-        } else if (happyRegex.test(text)) {
+        } else if (happyGreetingRegex.test(text)) {
+            emotion = 'happy';
+            emoji = '👋';
+            status = 'Greeting';
+        } else if (happyExcitedRegex.test(text)) {
             emotion = 'happy';
             emoji = '✨';
+            status = 'Excited';
+        } else if (happyRegex.test(text)) {
+            emotion = 'happy';
+            emoji = '💖';
             status = 'Happy';
         } else if (thinkingRegex.test(text)) {
             emotion = 'thinking';
@@ -305,14 +373,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         currentEmotion = emotion;
-        avatarWrapper.className = `avatar-wrapper ${emotion}`;
-        charStatus.textContent = status;
+        speakEmotion = emotion;
         
-        // Set base image for this expression
-        if (!avatarWrapper.classList.contains('speaking')) {
-            characterAvatar.src = `/static/character_${emotion}.png`;
+        // Save sub-emotion flags
+        if (emotion === 'happy') {
+            if (happyGreetingRegex.test(text)) speakEmotion = 'happy_greeting';
+            else if (happyExcitedRegex.test(text)) speakEmotion = 'happy_excited';
+        } else if (emotion === 'annoyed') {
+            if (annoyedIntenseRegex.test(text)) speakEmotion = 'annoyed_intense';
         }
         
+        videoViewport.className = `video-viewport ${emotion}`;
+        charStatus.textContent = status;
+        
+        // Switch to the correct idle video when not speaking
+        if (!isSpeaking) {
+            let idleKey = `idle_${speakEmotion}`;
+            if (!videoMap[idleKey]) idleKey = `idle_${emotion}`;
+            setAvatarVideo(videoMap[idleKey] || videoMap['idle_neutral']);
+        }
+        
+        // Setup emoji indicator bubble overlay
         if (emoji) {
             emojiIndicator.textContent = emoji;
             emojiIndicator.style.opacity = '1';
@@ -323,51 +404,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Dynamic speaking animation (cycling between current expression and speaking image)
-    function startSpeakingAnimation() {
-        if (speechInterval) clearInterval(speechInterval);
-        
-        let isMouthOpen = false;
-        const baseSrc = `/static/character_${currentEmotion}.png`;
-        const openSrc = '/static/character_speaking.png';
-        
-        speechInterval = setInterval(() => {
-            isMouthOpen = !isMouthOpen;
-            characterAvatar.src = isMouthOpen ? openSrc : baseSrc;
-        }, 180); // Toggle frame every 180ms
-    }
-
-    function stopSpeakingAnimation() {
-        if (speechInterval) {
-            clearInterval(speechInterval);
-            speechInterval = null;
-        }
-        characterAvatar.src = `/static/character_${currentEmotion}.png`;
-    }
-
-    // Voice player audio listeners for lips sync/mouth movement
+    // Voice player audio listeners for dynamic video sync
     if (voicePlayer) {
         voicePlayer.addEventListener('play', () => {
-            if (avatarWrapper) {
-                avatarWrapper.classList.add('speaking');
+            isSpeaking = true;
+            if (videoViewport) {
+                videoViewport.classList.add('speaking');
                 charStatus.textContent = 'Speaking';
-                startSpeakingAnimation();
+                
+                // Select corresponding speaking video
+                let speakKey = `speak_${speakEmotion}`;
+                if (!videoMap[speakKey]) speakKey = `speak_${currentEmotion}`;
+                setAvatarVideo(videoMap[speakKey] || videoMap['speak_neutral']);
             }
         });
-        voicePlayer.addEventListener('pause', () => {
-            if (avatarWrapper) {
-                avatarWrapper.classList.remove('speaking');
-                charStatus.textContent = currentEmotion.charAt(0).toUpperCase() + currentEmotion.slice(1);
-                stopSpeakingAnimation();
+        
+        const returnToIdle = () => {
+            isSpeaking = false;
+            if (videoViewport) {
+                videoViewport.classList.remove('speaking');
+                
+                // Capitalize emotion name for status display
+                let displayStatus = currentEmotion.charAt(0).toUpperCase() + currentEmotion.slice(1);
+                charStatus.textContent = displayStatus;
+                
+                // Switch back to correct idle video
+                let idleKey = `idle_${speakEmotion}`;
+                if (!videoMap[idleKey]) idleKey = `idle_${currentEmotion}`;
+                setAvatarVideo(videoMap[idleKey] || videoMap['idle_neutral']);
             }
-        });
-        voicePlayer.addEventListener('ended', () => {
-            if (avatarWrapper) {
-                avatarWrapper.classList.remove('speaking');
-                charStatus.textContent = currentEmotion.charAt(0).toUpperCase() + currentEmotion.slice(1);
-                stopSpeakingAnimation();
-            }
-        });
+        };
+        
+        voicePlayer.addEventListener('pause', returnToIdle);
+        voicePlayer.addEventListener('ended', returnToIdle);
     }
 
     // 7. Append System Message
@@ -412,11 +481,18 @@ document.addEventListener('DOMContentLoaded', () => {
         appendUserMessage(message);
         chatInput.value = '';
         
-        // Show typing indicator
+        // Show typing indicator, active thinking state and video
         typingIndicator.style.display = 'flex';
         chatInput.disabled = true;
         sendBtn.disabled = true;
         scrollToBottom();
+
+        charStatus.textContent = 'Thinking';
+        if (videoViewport) {
+            videoViewport.className = 'video-viewport thinking';
+            emojiIndicator.style.opacity = '0';
+        }
+        setAvatarVideo(videoMap['idle_thinking_active']);
 
         try {
             const res = await fetch('/api/chat', {
@@ -579,6 +655,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateServiceStatus();
     loadConfiguration();
     loadChatHistory();
+    setAvatarVideo(videoMap['idle_neutral']);
 
     // Poll statuses every 10 seconds
     setInterval(updateServiceStatus, 10000);

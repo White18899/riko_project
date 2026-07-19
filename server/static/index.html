@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="/static/style.css?v=5">
+    <link rel="stylesheet" href="/static/style.css?v=6">
 </head>
 <body>
     <div class="app-container">
@@ -79,15 +79,15 @@
 
             <!-- Riko Face Panel (Right Side Split) -->
             <section class="face-container">
-                <div class="face-card">
-                    <div class="avatar-wrapper" id="avatar-wrapper">
-                        <img src="/static/character_neutral.png" class="character-avatar" id="character-avatar" />
-                        <div class="blush-overlay" id="blush-overlay"></div>
-                        <div class="emoji-indicator" id="emoji-indicator"></div>
-                    </div>
-                    <div class="character-info">
+                <div class="video-viewport" id="video-viewport">
+                    <video id="character-video" autoplay loop muted playsinline class="character-video">
+                        <source src="/em/Woman_resting_idle_202607192147.mp4" type="video/mp4">
+                    </video>
+                    <div class="blush-overlay" id="blush-overlay"></div>
+                    <div class="emoji-indicator" id="emoji-indicator"></div>
+                    <div class="character-overlay-info">
                         <h2 class="char-name">Riko</h2>
-                        <span class="char-status" id="char-status">Idle</span>
+                        <span class="char-status-badge" id="char-status">Idle</span>
                     </div>
                 </div>
             </section>
@@ -203,6 +203,6 @@
     <!-- Hidden Audio Player -->
     <audio id="voice-player" style="display: none;"></audio>
 
-    <script src="/static/app.js?v=5"></script>
+    <script src="/static/app.js?v=6"></script>
 </body>
 </html>

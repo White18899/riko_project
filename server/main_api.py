@@ -343,6 +343,11 @@ static_dir = get_server_path("static")
 os.makedirs(static_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+# Serve video assets folder
+em_dir = get_project_path("em")
+os.makedirs(em_dir, exist_ok=True)
+app.mount("/em", StaticFiles(directory=em_dir), name="em")
+
 if __name__ == "__main__":
     import uvicorn
     # Clean up generated audio files at startup
