@@ -311,8 +311,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const absoluteSrc = new URL(src, window.location.href).href;
         if (characterVideo.src === absoluteSrc) {
             // Guarantee video is actively playing if source is already set
+            characterVideo.muted = true;
             if (characterVideo.paused) {
-                characterVideo.muted = true;
                 characterVideo.play().catch(err => console.warn("Autoplay resume failed:", err));
             }
             return;
@@ -320,9 +320,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         currentVideoSrc = src;
         
-        // Directly update source and play with muted compliance
-        characterVideo.src = src;
+        // Set muted BEFORE src to guarantee browser autoplay compliance
         characterVideo.muted = true;
+        characterVideo.src = src;
         characterVideo.play().catch(err => {
             console.warn("Autoplay failed:", err);
         });
