@@ -277,57 +277,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    let blinkTimeout = null;
-
-    function setAvatarFrame(emotion, frameNum) {
-        if (!characterAvatar) return;
-        characterAvatar.src = `/static/character_${emotion}_${frameNum}.png`;
-    }
-
-    // Natural eye blinking loop (plays 1 -> 2 -> 3 -> 4 -> 3 -> 2 -> 1)
-    function startBlinkingLoop() {
-        if (blinkTimeout) clearTimeout(blinkTimeout);
-        if (avatarWrapper && avatarWrapper.classList.contains('speaking')) return;
-
-        // Blinks randomly every 3 to 7 seconds
-        const nextBlinkDelay = 3000 + Math.random() * 4000;
-        
-        blinkTimeout = setTimeout(() => {
-            if (avatarWrapper && avatarWrapper.classList.contains('speaking')) {
-                startBlinkingLoop();
-                return;
-            }
-            
-            const frames = [1, 2, 3, 4, 3, 2, 1];
-            let idx = 0;
-            
-            function playNextBlink() {
-                if (avatarWrapper && avatarWrapper.classList.contains('speaking')) {
-                    startBlinkingLoop();
-                    return;
-                }
-                
-                if (idx < frames.length) {
-                    setAvatarFrame(currentEmotion, frames[idx]);
-                    idx++;
-                    setTimeout(playNextBlink, 60); // 60ms per frame for a smooth blink
-                } else {
-                    setAvatarFrame(currentEmotion, 1);
-                    startBlinkingLoop();
-                }
-            }
-            
-            playNextBlink();
-        }, nextBlinkDelay);
-    }
-
-    function stopBlinkingLoop() {
-        if (blinkTimeout) {
-            clearTimeout(blinkTimeout);
-            blinkTimeout = null;
-        }
-    }
-
     // Update Avatar Emotion and Status based on text content
     function updateAvatarEmotion(text) {
         if (!avatarWrapper || !characterAvatar) return;
@@ -359,9 +308,9 @@ document.addEventListener('DOMContentLoaded', () => {
         avatarWrapper.className = `avatar-wrapper ${emotion}`;
         charStatus.textContent = status;
         
-        // Set base frame (frame 1) for this expression
+        // Set base image for this expression
         if (!avatarWrapper.classList.contains('speaking')) {
-            setAvatarFrame(emotion, 1);
+            characterAvatar.src = `/static/character_${emotion}.png`;
         }
         
         if (emoji) {
@@ -374,20 +323,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Dynamic speaking animation (cycling 5 frames sequentially: 1-2-3-4-5-4-3-2)
+    // Dynamic speaking animation (cycling between current expression and speaking image)
     function startSpeakingAnimation() {
         if (speechInterval) clearInterval(speechInterval);
-        stopBlinkingLoop();
         
-        const frames = [1, 2, 3, 4, 5, 4, 3, 2];
-        let idx = 0;
+        let isMouthOpen = false;
+        const baseSrc = `/static/character_${currentEmotion}.png`;
+        const openSrc = '/static/character_speaking.png';
         
         speechInterval = setInterval(() => {
-            if (characterAvatar) {
-                characterAvatar.src = `/static/character_speaking_${frames[idx]}.png`;
-                idx = (idx + 1) % frames.length;
-            }
-        }, 90); // Cycle frames every 90ms for smooth speaking lips sync
+            isMouthOpen = !isMouthOpen;
+            characterAvatar.src = isMouthOpen ? openSrc : baseSrc;
+        }, 180); // Toggle frame every 180ms
     }
 
     function stopSpeakingAnimation() {
@@ -395,10 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
             clearInterval(speechInterval);
             speechInterval = null;
         }
-        // Restore base expression frame 1
-        setAvatarFrame(currentEmotion, 1);
-        // Resume natural blinking loop
-        startBlinkingLoop();
+        characterAvatar.src = `/static/character_${currentEmotion}.png`;
     }
 
     // Voice player audio listeners for lips sync/mouth movement
@@ -635,7 +579,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateServiceStatus();
     loadConfiguration();
     loadChatHistory();
-    startBlinkingLoop();
 
     // Poll statuses every 10 seconds
     setInterval(updateServiceStatus, 10000);
