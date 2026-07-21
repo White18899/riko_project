@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let mediaRecorder = null;
     let audioChunks = [];
     let isRecording = false;
+    let isRequestPending = false;
     let appConfig = {};
     let charConfig = {};
 
@@ -275,75 +276,257 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Video mapping config utilizing all 13 videos in the /em directory
-    const videoMap = {
-        // Idle loops
-        'idle_neutral': '/em/Woman_resting_idle_202607192147.mp4',
-        'idle_happy': '/em/Woman_smiles_hand_over_heart_202607192152.mp4',
-        'idle_happy_excited': '/em/Character_grins_flashes_peace_sign_202607192153.mp4',
-        'idle_happy_greeting': '/em/Character_smiles_and_waves_202607192153.mp4',
-        'idle_annoyed': '/em/Woman_crosses_arms_frustrated_202607192152.mp4',
-        'idle_sad': '/em/Woman_covers_face_distressed_crying_202607192149.mp4',
-        'idle_thinking': '/em/Woman_thinking_looking_202607192148.mp4',
-        'idle_thinking_active': '/em/Woman_thinking_looking_202607192148.mp4',
+    // ==========================================================================
+    // 6. 3D WebGL VRM Avatar Setup & Animators
+    // ==========================================================================
+    const canvas = document.getElementById('avatar-canvas');
+    const loadingEl = document.getElementById('avatar-loading');
 
-        // Speaking loops
-        'speak_neutral': '/em/Woman_explaining_complex_idea_202607192146.mp4',
-        'speak_happy': '/em/Character_laughing_on_balcony_202607192153.mp4',
-        'speak_annoyed': '/em/Woman_speaking_with_angry_expression_202607192146.mp4',
-        'speak_annoyed_intense': '/em/Character_points_finger_angrily_202607192152.mp4',
-        'speak_sad': '/em/Woman_wipes_tear_sad_expression_202607192150.mp4'
-    };
+    // Obsolete SVG element references (stubbed out for compatibility)
+    const eyebrowLeft = null;
+    const eyebrowRight = null;
+    const blushLeft = null;
+    const blushRight = null;
 
-    const thinkingVideo = '/em/Woman_thinking_looking_202607192148.mp4';
+    let currentVRM = null;
+    let clock = new THREE.Clock();
+    let scene, camera, renderer;
+    let lookTarget;
 
-    function getThinkingVideo() {
-        return thinkingVideo;
-    }
-
+    // Avatar State variables
+    let targetMouseX = 0;
+    let targetMouseY = 1.35;
+    let currentMouseX = 0;
+    let currentMouseY = 1.35;
     let isSpeaking = false;
     let speakEmotion = 'neutral';
-    // Instant, black-screen-proof video source swapper
-    function setAvatarVideo(src) {
-        if (!characterVideo) return;
+
+    function init3D() {
+        if (!canvas) return;
+
+        // 1. Create Scene
+        scene = new THREE.Scene();
+
+        // 2. Camera Setup
+        camera = new THREE.PerspectiveCamera(30, canvas.clientWidth / canvas.clientHeight, 0.1, 20.0);
+        camera.position.set(0.0, 1.35, 0.95);
+
+        // 3. Renderer Setup
+        renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+        renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.outputEncoding = THREE.sRGBEncoding;
+
+        // 4. Lighting Setup
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+        dirLight.position.set(1.0, 2.0, 1.0).normalize();
+        scene.add(dirLight);
+
+        // 5. LookAt Target
+        lookTarget = new THREE.Object3D();
+        scene.add(lookTarget);
+
+        // 6. Loader setup using GLTFLoader & THREE_VRM.VRMLoaderPlugin
+        const loader = new THREE.GLTFLoader();
         
-        // Compare with full URL resolved source
-        const absoluteSrc = new URL(src, window.location.href).href;
-        if (characterVideo.src === absoluteSrc) {
-            // Guarantee video is actively playing if source is already set
-            characterVideo.muted = true;
-            if (characterVideo.paused) {
-                characterVideo.play().catch(err => console.warn("Autoplay resume failed:", err));
-            }
-            return;
-        }
-        
-        currentVideoSrc = src;
-        
-        // Set muted BEFORE src to guarantee browser autoplay compliance
-        characterVideo.muted = true;
-        characterVideo.src = src;
-        characterVideo.play().catch(err => {
-            console.warn("Autoplay failed:", err);
+        loader.register((parser) => {
+            return new THREE_VRM.VRMLoaderPlugin(parser);
         });
+        
+        const modelUrl = '/static/models/AvatarSample_A.vrm';
+        
+        loader.load(
+            modelUrl,
+            (gltf) => {
+                const vrm = gltf.userData.vrm;
+                currentVRM = vrm;
+                scene.add(vrm.scene);
+
+                // Disable frustum culling so she doesn't pop out
+                vrm.scene.traverse((obj) => {
+                    obj.frustumCulled = false;
+                });
+
+                // Position model (facing camera)
+                vrm.scene.position.set(0, 0, 0);
+                vrm.scene.rotation.y = 0;
+
+                // Setup lookAt target
+                if (vrm.lookAt) {
+                    vrm.lookAt.target = lookTarget;
+                }
+
+                // Hide loading spinner
+                if (loadingEl) {
+                    loadingEl.classList.add('hidden');
+                }
+
+                console.log("🤖 VRM Avatar loaded successfully!");
+            },
+            (progress) => {
+                const percent = Math.round((progress.loaded / (progress.total || 15000000)) * 100);
+                console.log(`Loading VRM: ${percent}%`);
+            },
+            (error) => {
+                console.error("Failed to load GLTF model:", error);
+                if (loadingEl) {
+                    loadingEl.innerHTML = "<span>⚠️ Failed to load 3D Model</span>";
+                }
+            }
+        );
+
+        window.addEventListener('resize', onWindowResize);
     }
 
-    // Fallback: Start playing video on first user interaction if blocked by browser autoplay policy
-    const playOnInteraction = () => {
-        if (characterVideo && characterVideo.paused) {
-            characterVideo.play().catch(err => {
-                console.log("First interaction play attempt failed:", err);
-            });
+    function onWindowResize() {
+        if (!canvas || !renderer || !camera) return;
+        camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+    }
+
+    // Track mouse movement to direct VRM gaze
+    document.addEventListener('mousemove', (e) => {
+        if (!videoViewport) return;
+        const rect = videoViewport.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width - 0.5;
+        const y = (e.clientY - rect.top) / rect.height - 0.5;
+        
+        targetMouseX = x * 2.0; 
+        targetMouseY = -y * 1.5 + 1.35; 
+    });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!videoViewport || e.touches.length === 0) return;
+        const rect = videoViewport.getBoundingClientRect();
+        const touch = e.touches[0];
+        const x = (touch.clientX - rect.left) / rect.width - 0.5;
+        const y = (touch.clientY - rect.top) / rect.height - 0.5;
+        
+        targetMouseX = x * 2.0;
+        targetMouseY = -y * 1.5 + 1.35;
+    }, { passive: true });
+
+    // Web Audio Analyser for Real-time Lip-Sync
+    let audioCtx = null;
+    let analyser = null;
+    let dataArray = null;
+
+    function initAudioContext() {
+        if (audioCtx) return;
+        try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 64;
+            const source = audioCtx.createMediaElementSource(voicePlayer);
+            source.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            console.log("🔊 Web Audio Context & Analyser initialized successfully!");
+        } catch (err) {
+            console.warn("Autoplay constraint: Web Audio Context could not start:", err);
         }
-        document.removeEventListener('click', playOnInteraction);
-        document.removeEventListener('keydown', playOnInteraction);
-    };
-    document.addEventListener('click', playOnInteraction);
-    document.addEventListener('keydown', playOnInteraction);
+    }
+
+    document.addEventListener('click', initAudioContext, { once: true });
+    document.addEventListener('touchstart', initAudioContext, { once: true });
+
+    // Main animation loop
+    function animate() {
+        requestAnimationFrame(animate);
+
+        const delta = clock.getDelta();
+        const time = clock.getElapsedTime();
+
+        if (currentVRM) {
+            try {
+                currentVRM.update(delta);
+
+                // 1. Smooth gaze target tracking
+                currentMouseX += (targetMouseX - currentMouseX) * 0.12;
+                currentMouseY += (targetMouseY - currentMouseY) * 0.12;
+                lookTarget.position.set(currentMouseX, currentMouseY, 1.5);
+
+                // 2. Breathing chest movements
+                const chest = currentVRM.humanoid.getNormalizedBoneNode('chest');
+                if (chest) {
+                    chest.rotation.z = Math.sin(time * 2.0) * 0.008;
+                    chest.rotation.x = Math.sin(time * 2.0) * 0.004;
+                }
+
+                // 3. Natural Blink interval logic
+                let blinkVal = 0;
+                const blinkCycle = time % 4.0;
+                if (blinkCycle < 0.15) {
+                    blinkVal = Math.sin((blinkCycle / 0.15) * Math.PI);
+                }
+                if (currentVRM.expressionManager) {
+                    currentVRM.expressionManager.setValue('blink', blinkVal);
+                }
+
+                // 4. Web Audio Lip-Sync mouth movement
+                let volume = 0;
+                if (analyser && !voicePlayer.paused) {
+                    isSpeaking = true;
+                    analyser.getByteFrequencyData(dataArray);
+                    let sum = 0;
+                    for (let i = 0; i < dataArray.length; i++) {
+                        sum += dataArray[i];
+                    }
+                    const avg = sum / dataArray.length;
+                    volume = Math.min(avg / 150.0, 1.0); 
+                } else {
+                    isSpeaking = false;
+                }
+
+                // 5. Speech mouth shape Vowel A vs Idle expressions mapping
+                if (currentVRM.expressionManager) {
+                    if (isSpeaking) {
+                        currentVRM.expressionManager.setValue('aa', volume * 0.85);
+                        currentVRM.expressionManager.setValue('happy', 0);
+                        currentVRM.expressionManager.setValue('angry', 0);
+                        currentVRM.expressionManager.setValue('sad', 0);
+                    } else {
+                        currentVRM.expressionManager.setValue('aa', 0);
+                        
+                        if (currentEmotion === 'happy') {
+                            currentVRM.expressionManager.setValue('happy', 0.85);
+                            currentVRM.expressionManager.setValue('angry', 0);
+                            currentVRM.expressionManager.setValue('sad', 0);
+                        } else if (currentEmotion === 'annoyed') {
+                            currentVRM.expressionManager.setValue('angry', 0.95);
+                            currentVRM.expressionManager.setValue('happy', 0);
+                            currentVRM.expressionManager.setValue('sad', 0);
+                        } else if (currentEmotion === 'sad') {
+                            currentVRM.expressionManager.setValue('sad', 0.8);
+                            currentVRM.expressionManager.setValue('happy', 0);
+                            currentVRM.expressionManager.setValue('angry', 0);
+                        } else {
+                            currentVRM.expressionManager.setValue('happy', 0);
+                            currentVRM.expressionManager.setValue('angry', 0);
+                            currentVRM.expressionManager.setValue('sad', 0);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("CRITICAL ANIMATION ERROR:", err);
+            }
+        }
+
+        if (renderer && scene && camera) {
+            renderer.render(scene, camera);
+        }
+    }
+
+    init3D();
+    animate();
 
     // Update Avatar Emotion and Status based on text content
     function updateAvatarEmotion(text, willPlayVoice = false) {
-        if (!videoViewport || !characterVideo) return;
+        if (!videoViewport) return;
         
         // Comprehensive tsundere and dynamic sentiment matching
         const annoyedIntenseRegex = /shut up|hate you|go away|idiot|baka|annoyed|bothering|stupid|jerk|stop/i;
@@ -359,7 +542,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let emotion = 'neutral';
         let status = 'Idle';
         
-        // Select appropriate emotion
         if (sadRegex.test(text)) {
             emotion = 'sad';
             status = 'Sad';
@@ -386,7 +568,6 @@ document.addEventListener('DOMContentLoaded', () => {
         currentEmotion = emotion;
         speakEmotion = emotion;
         
-        // Save sub-emotion flags
         if (emotion === 'happy') {
             if (happyGreetingRegex.test(text)) speakEmotion = 'happy_greeting';
             else if (happyExcitedRegex.test(text)) speakEmotion = 'happy_excited';
@@ -394,55 +575,28 @@ document.addEventListener('DOMContentLoaded', () => {
             if (annoyedIntenseRegex.test(text)) speakEmotion = 'annoyed_intense';
         }
         
+        // Apply emotion class to container
         videoViewport.className = `video-viewport ${emotion}`;
 
-        // Defer video swap and status badge to voice player event handlers if audio will play
         if (willPlayVoice) return;
-        
         charStatus.textContent = status;
-        
-        // Switch to the correct idle video when not speaking
-        if (!isSpeaking) {
-            let idleKey = `idle_${speakEmotion}`;
-            if (!videoMap[idleKey]) idleKey = `idle_${emotion}`;
-            
-            if (emotion === 'thinking') {
-                setAvatarVideo(getThinkingVideo());
-            } else {
-                setAvatarVideo(videoMap[idleKey] || videoMap['idle_neutral']);
-            }
-        }
-        
     }
 
-    // Voice player audio listeners for dynamic video sync
+    // Voice player audio listeners for dynamic status sync
     if (voicePlayer) {
         voicePlayer.addEventListener('play', () => {
-            isSpeaking = true;
+            initAudioContext();
             if (videoViewport) {
                 videoViewport.classList.add('speaking');
                 charStatus.textContent = 'Speaking';
-                
-                // Select corresponding speaking video
-                let speakKey = `speak_${speakEmotion}`;
-                if (!videoMap[speakKey]) speakKey = `speak_${currentEmotion}`;
-                setAvatarVideo(videoMap[speakKey] || videoMap['speak_neutral']);
             }
         });
         
         const returnToIdle = () => {
-            isSpeaking = false;
             if (videoViewport) {
                 videoViewport.classList.remove('speaking');
-                
-                // Capitalize emotion name for status display
                 let displayStatus = currentEmotion.charAt(0).toUpperCase() + currentEmotion.slice(1);
                 charStatus.textContent = displayStatus;
-                
-                // Switch back to correct idle video
-                let idleKey = `idle_${speakEmotion}`;
-                if (!videoMap[idleKey]) idleKey = `idle_${currentEmotion}`;
-                setAvatarVideo(videoMap[idleKey] || videoMap['idle_neutral']);
             }
         };
         
@@ -487,8 +641,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 8. Send Chat Message
     async function sendChatMessage(message) {
-        if (!message || !message.trim()) return;
+        if (!message || !message.trim() || isRequestPending) return;
 
+        isRequestPending = true;
         appendUserMessage(message);
         chatInput.value = '';
         
@@ -496,13 +651,24 @@ document.addEventListener('DOMContentLoaded', () => {
         typingIndicator.style.display = 'flex';
         chatInput.disabled = true;
         sendBtn.disabled = true;
+        
+        // Disable mic button visually and functionally
+        if (micBtn) {
+            micBtn.style.opacity = '0.5';
+            micBtn.style.pointerEvents = 'none';
+        }
+        
         scrollToBottom();
 
         charStatus.textContent = 'Thinking';
         if (videoViewport) {
             videoViewport.className = 'video-viewport thinking';
         }
-        setAvatarVideo(getThinkingVideo());
+        currentEmotion = 'thinking';
+        if (eyebrowLeft && eyebrowRight) {
+            eyebrowLeft.setAttribute('transform', 'translate(1, -2) rotate(-3)');
+            eyebrowRight.setAttribute('transform', 'translate(-1, -2) rotate(3)');
+        }
 
         try {
             const res = await fetch('/api/chat', {
@@ -526,6 +692,14 @@ document.addEventListener('DOMContentLoaded', () => {
             typingIndicator.style.display = 'none';
             chatInput.disabled = false;
             sendBtn.disabled = false;
+            
+            // Re-enable mic button
+            if (micBtn) {
+                micBtn.style.opacity = '';
+                micBtn.style.pointerEvents = '';
+            }
+            
+            isRequestPending = false;
             chatInput.focus();
             scrollToBottom();
         }
@@ -661,12 +835,188 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 12. Auto-run startup fetches
+    // ==========================================================================
+    // 11.5. Interactive Avatar Hotspots & Visual Effects
+    // ==========================================================================
+    const hotspotHead = document.getElementById('hotspot-head');
+    const hotspotFace = document.getElementById('hotspot-face');
+    const hotspotChest = document.getElementById('hotspot-chest');
+    
+    let lastInteractionTime = 0;
+    const INTERACTION_COOLDOWN = 5000; // 5s cooldown to prevent LLM/TTS request spamming
+    
+    // Developer debug visibility key: Press Shift + D to toggle outline of hotspots
+    document.addEventListener('keydown', (e) => {
+        if (e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+            const hotspots = document.querySelectorAll('.hotspot');
+            hotspots.forEach(h => h.classList.toggle('debug-visible'));
+            console.log("Toggle hotspot outlines!");
+        }
+    });
+
+    // Particle generator for headpats (hearts/blossoms) and pokes (anger marks)
+    function spawnParticle(x, y, emojis) {
+        if (!videoViewport) return;
+        const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+        const particle = document.createElement('div');
+        particle.className = 'interaction-particle';
+        particle.textContent = emoji;
+        particle.style.left = `${x}px`;
+        particle.style.top = `${y}px`;
+        
+        // Apply random minor offsets to make it look organic
+        const randomXOffset = (Math.random() - 0.5) * 35;
+        const randomYOffset = (Math.random() - 0.5) * 35;
+        particle.style.marginLeft = `${randomXOffset}px`;
+        particle.style.marginTop = `${randomYOffset}px`;
+        
+        videoViewport.appendChild(particle);
+        
+        // Clean up particle element after animation completes
+        particle.addEventListener('animationend', () => {
+            particle.remove();
+        });
+    }
+
+    // Dynamic interaction controller to trigger immediate audio/visual feedback and send message
+    function triggerInteraction(actionText, type) {
+        const now = Date.now();
+        if (now - lastInteractionTime < INTERACTION_COOLDOWN) {
+            // Visual feedback still triggers on spam clicks, but LLM chat requests are ignored
+            return false;
+        }
+        
+        lastInteractionTime = now;
+        
+        // Immediate visual state change before LLM response begins
+        if (type === 'headpat') {
+            videoViewport.className = 'video-viewport happy';
+            charStatus.textContent = 'Happy';
+            
+            // Set SVG properties directly
+            currentEmotion = 'happy';
+            if (eyebrowLeft && eyebrowRight) {
+                eyebrowLeft.setAttribute('transform', 'translate(0, -3) rotate(-5)');
+                eyebrowRight.setAttribute('transform', 'translate(0, -3) rotate(5)');
+            }
+            if (blushLeft && blushRight) {
+                blushLeft.style.opacity = '0.85';
+                blushRight.style.opacity = '0.85';
+            }
+            
+            // Trigger temporary blush overlay
+            const blushOverlay = document.getElementById('blush-overlay');
+            if (blushOverlay) {
+                blushOverlay.style.opacity = '1';
+                setTimeout(() => {
+                    blushOverlay.style.opacity = '';
+                }, 2500);
+            }
+        } else if (type === 'poke') {
+            // Apply screen shake
+            videoViewport.classList.add('shake-viewport');
+            videoViewport.addEventListener('animationend', () => {
+                videoViewport.classList.remove('shake-viewport');
+            }, { once: true });
+            
+            videoViewport.className = 'video-viewport annoyed';
+            charStatus.textContent = 'Annoyed';
+            
+            // Set SVG properties directly
+            currentEmotion = 'annoyed';
+            if (eyebrowLeft && eyebrowRight) {
+                eyebrowLeft.setAttribute('transform', 'translate(3, 4) rotate(15)');
+                eyebrowRight.setAttribute('transform', 'translate(-3, 4) rotate(-15)');
+            }
+            if (blushLeft && blushRight) {
+                blushLeft.style.opacity = '0.4';
+                blushRight.style.opacity = '0.4';
+            }
+        }
+        
+        // Send the action message to trigger Riko's reaction
+        sendChatMessage(actionText);
+        return true;
+    }
+
+    // Headpat dragging/swiping tracking
+    let isPatting = false;
+    let patParticleCount = 0;
+    
+    const handleHeadpatStart = (e) => {
+        isPatting = true;
+        patParticleCount = 0;
+        const rect = videoViewport.getBoundingClientRect();
+        const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+        const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+        if (clientX && clientY) {
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+            spawnParticle(x, y, ['🌸', '💖', '✨', '💕', '🥰']);
+        }
+        triggerInteraction("*pats your head gently*", 'headpat');
+    };
+
+    const handleHeadpatMove = (e) => {
+        if (!isPatting) return;
+        patParticleCount++;
+        
+        // Throttle particle frequency during drag
+        if (patParticleCount % 6 === 0) {
+            const rect = videoViewport.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            if (clientX && clientY) {
+                const x = clientX - rect.left;
+                const y = clientY - rect.top;
+                spawnParticle(x, y, ['🌸', '💖', '✨', '💕']);
+            }
+        }
+    };
+
+    const handleHeadpatEnd = () => {
+        isPatting = false;
+    };
+
+    // Headpat listeners (Mouse)
+    hotspotHead.addEventListener('mousedown', handleHeadpatStart);
+    hotspotHead.addEventListener('mousemove', handleHeadpatMove);
+    window.addEventListener('mouseup', handleHeadpatEnd);
+    
+    // Headpat listeners (Touch/Mobile)
+    hotspotHead.addEventListener('touchstart', handleHeadpatStart, { passive: true });
+    hotspotHead.addEventListener('touchmove', handleHeadpatMove, { passive: true });
+    window.addEventListener('touchend', handleHeadpatEnd);
+
+    // Cheek Poke listeners
+    hotspotFace.addEventListener('click', (e) => {
+        const rect = videoViewport.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        spawnParticle(x, y, ['💢', '⚡', '💥', '🙄']);
+        triggerInteraction("*pokes your cheek*", 'poke');
+    });
+
+    // Arm/Body Poke listeners
+    hotspotChest.addEventListener('click', (e) => {
+        const rect = videoViewport.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        spawnParticle(x, y, ['💢', '❓', '😤', '👊']);
+        triggerInteraction("*pokes your side ticklishly*", 'poke');
+    });
+
+    // ==========================================================================
+    // 12. Auto-run startup fetches & initialization
+    // ==========================================================================
     updateServiceStatus();
     loadConfiguration();
     loadChatHistory();
-    setAvatarVideo(videoMap['idle_neutral']);
+    
+    // Initialize default avatar state
+    currentEmotion = 'neutral';
 
     // Poll statuses every 10 seconds
     setInterval(updateServiceStatus, 10000);
 });
+

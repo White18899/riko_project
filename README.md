@@ -107,9 +107,27 @@ python -m venv .venv
 
 ## 🧪 Usage
 
-To run the full voice-enabled companion, you must start two servers: the **GPT-SoVITS API Server** for voice synthesis, and the **Riko Companion Server** for orchestration and UI.
+### 🚀 One-Click Quick Start (Recommended)
+
+Run everything automatically (Ollama check, GPT-SoVITS TTS launch, Riko API server, and browser auto-open):
+
+- **Windows:** Double-click `run_all.bat` or run in terminal:
+  ```cmd
+  run_all.bat
+  ```
+- **Terminal / Cross-platform:**
+  ```bash
+  .venv\Scripts\python run_all.py
+  ```
+
+---
+
+### Manual Launch
+
+If you prefer to start services individually:
 
 ### 1. Launch the GPT-SoVITS API Server
+
 Navigate to your local GPT-SoVITS repository directory and run the `api_v2.py` server.
 
 > [!WARNING]

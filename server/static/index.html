@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="/static/style.css?v=16">
+    <link rel="stylesheet" href="/static/style.css?v=27">
 </head>
 <body>
     <div class="app-container">
@@ -80,8 +80,26 @@
             <!-- Riko Face Panel (Right Side Split) -->
             <section class="face-container">
                 <div class="video-viewport" id="video-viewport">
-                    <video id="character-video" src="/em/Woman_resting_idle_202607192147.mp4" autoplay loop muted playsinline class="character-video"></video>
+                    <!-- WebGL Avatar Container -->
+                    <div class="avatar-container" id="avatar-container">
+                        <canvas id="avatar-canvas"></canvas>
+                        <!-- Loader element -->
+                        <div id="avatar-loading" class="avatar-loading">
+                            <div class="spinner"></div>
+                            <span>Loading 3D Riko...</span>
+                        </div>
+                    </div>
+
                     <div class="blush-overlay" id="blush-overlay"></div>
+                    
+                    <!-- Interaction Hotspots -->
+                    <div class="interaction-overlay" id="interaction-overlay">
+                        <div class="hotspot hotspot-head" id="hotspot-head" title="Pat Riko's head"></div>
+                        <div class="hotspot hotspot-face" id="hotspot-face" title="Poke Riko's cheek"></div>
+                        <div class="hotspot hotspot-chest" id="hotspot-chest" title="Poke Riko's arm"></div>
+                        <div class="interaction-tip">💡 Click Riko's head/face to interact</div>
+                    </div>
+                    
                     <div class="character-overlay-info">
                         <h2 class="char-name">Riko</h2>
                         <span class="char-status-badge" id="char-status">Idle</span>
@@ -200,6 +218,11 @@
     <!-- Hidden Audio Player -->
     <audio id="voice-player" style="display: none;"></audio>
 
-    <script src="/static/app.js?v=16"></script>
+    <!-- Three.js + GLTFLoader + Pixiv three-vrm SDK -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@1.0.10/lib/three-vrm.js"></script>
+
+    <script src="/static/app.js?v=27"></script>
 </body>
 </html>

@@ -3,3 +3,5 @@ model: "ornith:9b"
 history_file: "chat_history.json"
 long_term_memory_file: "long_term_memory.json"
 max_short_term_turns: 8
+sovits_dir: "C:\\Users\\white\\GPT-SoVITS-v4-nvidia50"
+
