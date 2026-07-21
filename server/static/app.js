@@ -274,6 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (audioUrl) {
             playAudio(audioUrl);
         }
+        return msgDiv;
     }
 
     // ==========================================================================
@@ -457,6 +458,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     chest.rotation.x = Math.sin(time * 2.0) * 0.004;
                 }
 
+                // Relax arms down from T-pose to natural standing posture
+                const leftArm = currentVRM.humanoid.getNormalizedBoneNode('leftUpperArm');
+                if (leftArm) {
+                    leftArm.rotation.z = -1.3;
+                }
+                const rightArm = currentVRM.humanoid.getNormalizedBoneNode('rightUpperArm');
+                if (rightArm) {
+                    rightArm.rotation.z = 1.3;
+                }
+
                 // 3. Natural Blink interval logic
                 let blinkVal = 0;
                 const blinkCycle = time % 4.0;
@@ -631,13 +642,15 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/'/g, "&#039;");
     }
 
-    // Global audio playing helper
-    window.playAudio = function(url) {
+    // Scoped audio playing helper
+    function playAudio(url) {
+        if (!voicePlayer) return;
         voicePlayer.src = url;
         voicePlayer.play().catch(err => {
             console.error('Audio play failed:', err);
         });
-    };
+    }
+    window.playAudio = playAudio;
 
     // 8. Send Chat Message
     async function sendChatMessage(message) {
@@ -679,10 +692,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (res.ok) {
                 const data = await res.json();
-                appendAssistantMessage(data.text, data.thinking, data.audio_url);
+                const msgEl = appendAssistantMessage(data.text, data.thinking, null);
                 
                 // If memory consolidation just ran, refresh facts
                 setTimeout(loadChatHistory, 1000); // Slight delay for file I/O to settle
+
+                // Start TTS generation in the background
+                fetch('/api/tts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: data.text })
+                })
+                .then(r => r.json())
+                .then(ttsData => {
+                    if (ttsData.audio_url) {
+                        playAudio(ttsData.audio_url);
+                        
+                        // Add replay button to bubble dynamically
+                        const bubbleText = msgEl.querySelector('.chat-bubble-text');
+                        if (bubbleText) {
+                            const audioBtn = document.createElement('button');
+                            audioBtn.className = 'audio-play-btn';
+                            audioBtn.title = 'Replay voice';
+                            audioBtn.onclick = () => playAudio(ttsData.audio_url);
+                            audioBtn.innerHTML = '<i data-lucide="play" style="width:12px;height:12px;"></i>';
+                            bubbleText.appendChild(audioBtn);
+                            lucide.createIcons();
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error('Background TTS failed:', err);
+                });
             } else {
                 appendSystemMessage("Error: Failed to fetch response from Riko.");
             }
@@ -838,21 +879,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================================================
     // 11.5. Interactive Avatar Hotspots & Visual Effects
     // ==========================================================================
-    const hotspotHead = document.getElementById('hotspot-head');
-    const hotspotFace = document.getElementById('hotspot-face');
-    const hotspotChest = document.getElementById('hotspot-chest');
-    
     let lastInteractionTime = 0;
     const INTERACTION_COOLDOWN = 5000; // 5s cooldown to prevent LLM/TTS request spamming
-    
-    // Developer debug visibility key: Press Shift + D to toggle outline of hotspots
-    document.addEventListener('keydown', (e) => {
-        if (e.shiftKey && (e.key === 'D' || e.key === 'd')) {
-            const hotspots = document.querySelectorAll('.hotspot');
-            hotspots.forEach(h => h.classList.toggle('debug-visible'));
-            console.log("Toggle hotspot outlines!");
-        }
-    });
+
+    // Raycaster for 3D model interaction
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
 
     // Particle generator for headpats (hearts/blossoms) and pokes (anger marks)
     function spawnParticle(x, y, emojis) {
@@ -939,72 +971,89 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
     }
 
-    // Headpat dragging/swiping tracking
-    let isPatting = false;
-    let patParticleCount = 0;
-    
-    const handleHeadpatStart = (e) => {
-        isPatting = true;
-        patParticleCount = 0;
-        const rect = videoViewport.getBoundingClientRect();
+    function onCanvasClick(e) {
+        if (!canvas || !currentVRM) return;
+
+        // Get normalized device coordinates (-1 to +1) for the mouse/touch
+        const rect = canvas.getBoundingClientRect();
         const clientX = e.clientX || (e.touches && e.touches[0].clientX);
         const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-        if (clientX && clientY) {
-            const x = clientX - rect.left;
-            const y = clientY - rect.top;
-            spawnParticle(x, y, ['🌸', '💖', '✨', '💕', '🥰']);
-        }
-        triggerInteraction("*pats your head gently*", 'headpat');
-    };
-
-    const handleHeadpatMove = (e) => {
-        if (!isPatting) return;
-        patParticleCount++;
         
-        // Throttle particle frequency during drag
-        if (patParticleCount % 6 === 0) {
-            const rect = videoViewport.getBoundingClientRect();
-            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
-            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
-            if (clientX && clientY) {
-                const x = clientX - rect.left;
-                const y = clientY - rect.top;
-                spawnParticle(x, y, ['🌸', '💖', '✨', '💕']);
+        if (clientX === undefined || clientY === undefined) return;
+        
+        mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+        // Update the raycaster with camera and mouse position
+        raycaster.setFromCamera(mouse, camera);
+
+        // Intersect objects in currentVRM.scene
+        const intersects = raycaster.intersectObjects(currentVRM.scene.children, true);
+
+        if (intersects.length > 0) {
+            const hit = intersects[0];
+            const hitPoint = hit.point; // World space position of hit
+            
+            // Traverse up to find if it belongs to a humanoid bone
+            let boneName = null;
+            let current = hit.object;
+            while (current) {
+                if (currentVRM.humanoid) {
+                    for (const [name, bone] of Object.entries(currentVRM.humanoid.humanBones)) {
+                        if (bone.node === current) {
+                            boneName = name;
+                            break;
+                        }
+                    }
+                }
+                if (boneName) break;
+                current = current.parent;
+            }
+
+            // Spawn particles at click coordinates (relative to videoViewport container)
+            const viewRect = videoViewport.getBoundingClientRect();
+            const px = clientX - viewRect.left;
+            const py = clientY - viewRect.top;
+
+            if (boneName) {
+                console.log("🎯 Intersected 3D bone:", boneName, "at Y:", hitPoint.y);
+                
+                // Determine action based on intersected bone and height
+                if (boneName === 'head' || boneName === 'neck') {
+                    if (hitPoint.y > 1.38) {
+                        // Top of head -> Headpat
+                        spawnParticle(px, py, ['🌸', '💖', '✨', '💕', '🥰']);
+                        triggerInteraction("*pats your head gently*", 'headpat');
+                    } else {
+                        // Lower head/neck -> Cheek Poke
+                        spawnParticle(px, py, ['💢', '⚡', '💥', '🙄']);
+                        triggerInteraction("*pokes your cheek*", 'poke');
+                    }
+                } else {
+                    // Arms, chest, hips -> Arm/Body Poke
+                    spawnParticle(px, py, ['💢', '❓', '😤', '👊']);
+                    triggerInteraction("*pokes your side ticklishly*", 'poke');
+                }
+            } else {
+                // Fallback using height if bone mapping is not direct (e.g. hair/accessories)
+                console.log("🎯 Intersected 3D mesh at Y:", hitPoint.y);
+                if (hitPoint.y > 1.38) {
+                    spawnParticle(px, py, ['🌸', '💖', '✨', '💕', '🥰']);
+                    triggerInteraction("*pats your head gently*", 'headpat');
+                } else if (hitPoint.y > 1.18) {
+                    spawnParticle(px, py, ['💢', '⚡', '💥', '🙄']);
+                    triggerInteraction("*pokes your cheek*", 'poke');
+                } else {
+                    spawnParticle(px, py, ['💢', '❓', '😤', '👊']);
+                    triggerInteraction("*pokes your side ticklishly*", 'poke');
+                }
             }
         }
-    };
+    }
 
-    const handleHeadpatEnd = () => {
-        isPatting = false;
-    };
-
-    // Headpat listeners (Mouse)
-    hotspotHead.addEventListener('mousedown', handleHeadpatStart);
-    hotspotHead.addEventListener('mousemove', handleHeadpatMove);
-    window.addEventListener('mouseup', handleHeadpatEnd);
-    
-    // Headpat listeners (Touch/Mobile)
-    hotspotHead.addEventListener('touchstart', handleHeadpatStart, { passive: true });
-    hotspotHead.addEventListener('touchmove', handleHeadpatMove, { passive: true });
-    window.addEventListener('touchend', handleHeadpatEnd);
-
-    // Cheek Poke listeners
-    hotspotFace.addEventListener('click', (e) => {
-        const rect = videoViewport.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        spawnParticle(x, y, ['💢', '⚡', '💥', '🙄']);
-        triggerInteraction("*pokes your cheek*", 'poke');
-    });
-
-    // Arm/Body Poke listeners
-    hotspotChest.addEventListener('click', (e) => {
-        const rect = videoViewport.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        spawnParticle(x, y, ['💢', '❓', '😤', '👊']);
-        triggerInteraction("*pokes your side ticklishly*", 'poke');
-    });
+    if (canvas) {
+        canvas.addEventListener('click', onCanvasClick);
+    }
 
     // ==========================================================================
     // 12. Auto-run startup fetches & initialization

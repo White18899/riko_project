@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="/static/style.css?v=27">
+    <link rel="stylesheet" href="/static/style.css?v=34">
 </head>
 <body>
     <div class="app-container">
@@ -92,12 +92,9 @@
 
                     <div class="blush-overlay" id="blush-overlay"></div>
                     
-                    <!-- Interaction Hotspots -->
-                    <div class="interaction-overlay" id="interaction-overlay">
-                        <div class="hotspot hotspot-head" id="hotspot-head" title="Pat Riko's head"></div>
-                        <div class="hotspot hotspot-face" id="hotspot-face" title="Poke Riko's cheek"></div>
-                        <div class="hotspot hotspot-chest" id="hotspot-chest" title="Poke Riko's arm"></div>
-                        <div class="interaction-tip">💡 Click Riko's head/face to interact</div>
+                    <!-- Interaction Overlay -->
+                    <div class="interaction-overlay" id="interaction-overlay" style="pointer-events: none;">
+                        <div class="interaction-tip">💡 Click Riko's head/face/body to interact</div>
                     </div>
                     
                     <div class="character-overlay-info">
@@ -223,6 +220,6 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@1.0.10/lib/three-vrm.js"></script>
 
-    <script src="/static/app.js?v=27"></script>
+    <script src="/static/app.js?v=34"></script>
 </body>
 </html>

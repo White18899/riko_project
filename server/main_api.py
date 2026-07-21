@@ -145,15 +145,7 @@ async def chat_endpoint(request: ChatRequest):
         audio_url = None
         tts_active = False
         
-        # Test TTS availability
-        tts_available = False
         try:
-            resp = requests.get("http://127.0.0.1:9880/tts", timeout=1)
-            tts_available = True
-        except Exception:
-            pass
-
-        if tts_available:
             from process.tts_func.sovits_ping import sovits_gen
             uid = uuid.uuid4().hex
             filename = f"output_{uid}.wav"
@@ -165,6 +157,8 @@ async def chat_endpoint(request: ChatRequest):
             if gen_path and os.path.exists(gen_path):
                 audio_url = f"/api/audio/{filename}"
                 tts_active = True
+        except Exception as e:
+            print(f"⚠️ TTS generation skipped/failed: {e}")
 
         return {
             "text": clean_response,
@@ -222,6 +216,45 @@ async def clear_history_endpoint():
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
     return {"status": "error", "message": "Memory manager not initialized"}
+
+def clean_and_truncate_text(text: str, max_chars: int = 600) -> str:
+    # 1. Remove action descriptions inside asterisks (e.g. *giggles*, *pats head*)
+    cleaned = re.sub(r'\*.*?\*', '', text)
+    # 2. Clean extra whitespaces
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    # 3. Apply safety limit
+    return cleaned[:max_chars].strip()
+
+class TTSRequest(BaseModel):
+    text: str
+
+@app.post("/api/tts")
+async def tts_endpoint(request: TTSRequest):
+    try:
+        from process.tts_func.sovits_ping import sovits_gen
+        
+        # Clean and truncate text for instant and natural speech synthesis
+        tts_text = clean_and_truncate_text(request.text)
+        if not tts_text.strip():
+            # If after cleaning there is no dialogue text, return None
+            return {"audio_url": None, "tts_active": False}
+            
+        uid = uuid.uuid4().hex
+        filename = f"output_{uid}.wav"
+        audio_dir = get_project_path("audio")
+        os.makedirs(audio_dir, exist_ok=True)
+        output_path = os.path.join(audio_dir, filename)
+        
+        gen_path = sovits_gen(tts_text, output_path)
+        if gen_path and os.path.exists(gen_path):
+            return {
+                "audio_url": f"/api/audio/{filename}",
+                "tts_active": True
+            }
+        return {"audio_url": None, "tts_active": False}
+    except Exception as e:
+        print(f"⚠️ TTS generation failed: {e}")
+        return {"audio_url": None, "tts_active": False}
 
 @app.get("/api/audio/{filename}")
 async def get_audio_endpoint(filename: str):
@@ -361,4 +394,5 @@ if __name__ == "__main__":
     
     print("\n🚀 Launching Riko Web UI API server...")
     print("Open http://127.0.0.1:8000 in your browser.\n")
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    # Enable hot-reloading for auto-applying future backend updates
+    uvicorn.run("main_api:app", host="127.0.0.1", port=8000, reload=True, reload_dirs=[server_dir])
