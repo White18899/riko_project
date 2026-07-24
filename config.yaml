@@ -1,7 +1,7 @@
 ollama_host: "http://localhost:11434"
-model: "ornith:9b"
+model: "qwen2.5:1.5b"
 history_file: "chat_history.json"
 long_term_memory_file: "long_term_memory.json"
-max_short_term_turns: 8
+max_short_term_turns: 80
 sovits_dir: "C:\\Users\\white\\GPT-SoVITS-v4-nvidia50"
 

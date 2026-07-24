@@ -46,25 +46,25 @@ def validate_and_check_services():
     if 'default' not in char_config['presets'] or 'system_prompt' not in char_config['presets']['default']:
         return False, False, False, None, None, "presets.default.system_prompt is required in character_config.yaml"
 
-    # 4. Check Ollama connection (Fail Fast)
-    ollama_host = config.get('ollama_host')
+    # 4. Check Ollama connection
+    ollama_host = config.get('ollama_host', 'http://localhost:11434')
     try:
-        resp = requests.get(f"{ollama_host}/api/tags", timeout=3)
+        resp = requests.get(f"{ollama_host}/api/tags", timeout=2)
         if resp.status_code != 200:
-            return False, False, False, None, None, f"Ollama returned status {resp.status_code} at {ollama_host}"
+            return False, False, False, config, char_config, f"Ollama returned status {resp.status_code} at {ollama_host}"
         
         # Check if target model is pulled
         models_data = resp.json()
         models = [m['name'] for m in models_data.get('models', [])]
         target_model = config.get('model')
-        # Check either exact match or match without tag (e.g. ornith:9b matches ornith:9b or ornith:latest)
         model_exists = any(target_model in m or m in target_model for m in models)
         if not model_exists:
             print(f"⚠️ Warning: Target model '{target_model}' not found in Ollama models list: {models}")
             print(f"Please run: ollama pull {target_model}")
-            # Do not hard-fail here, but warn
+    except requests.exceptions.RequestException:
+        return False, False, False, config, char_config, f"Ollama service is currently offline at {ollama_host}. (Run via run_all.bat to start automatically)"
     except Exception as e:
-        return False, False, False, None, None, f"Failed to connect to local Ollama at {ollama_host}. Is Ollama running? Error: {e}"
+        return False, False, False, config, char_config, f"Could not connect to Ollama at {ollama_host}: {e}"
 
     # 5. Check GPT-SoVITS Connection
     tts_available = True

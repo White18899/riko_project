@@ -107,6 +107,24 @@ def check_and_start_tts():
         print(f"  ❌ Failed to start GPT-SoVITS: {e}")
         return False
 
+def supervisor_loop():
+    """
+    Background daemon thread to monitor and auto-recover crashed microservices.
+    """
+    print("🛡️ Process Supervisor active (auto-monitoring Ollama & GPT-SoVITS every 12s)...")
+    while True:
+        time.sleep(12)
+        try:
+            if not is_url_responsive("http://localhost:11434/api/tags"):
+                print("  ⚠️ Process Supervisor: Ollama host offline. Triggering auto-recovery...")
+                check_and_start_ollama()
+            
+            if not is_url_responsive("http://127.0.0.1:9880/tts"):
+                print("  ⚠️ Process Supervisor: GPT-SoVITS host offline. Triggering auto-recovery...")
+                check_and_start_tts()
+        except Exception as e:
+            print(f"  ⚠️ Process Supervisor error: {e}")
+
 def main():
     print("==================================================")
     print("       🌸 Starting Riko AI Companion Setup 🌸      ")
@@ -118,13 +136,15 @@ def main():
     # Step 2: Check TTS
     check_and_start_tts()
 
-    # Step 3: Launch Web Browser after 2 seconds in background
+    # Step 3: Launch Background Supervisor & Web Browser
+    import threading
+    threading.Thread(target=supervisor_loop, daemon=True).start()
+
     def open_browser():
         time.sleep(2.5)
         print("🌐 Opening web browser at http://127.0.0.1:8000...")
         webbrowser.open("http://127.0.0.1:8000")
 
-    import threading
     threading.Thread(target=open_browser, daemon=True).start()
 
     # Step 4: Run Riko FastAPI Server

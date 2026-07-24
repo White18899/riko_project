@@ -28,23 +28,60 @@
                 <span class="status-badge" id="status-ollama" title="Ollama LLM Server">
                     <i data-lucide="brain"></i> LLM
                 </span>
-                <span class="status-badge" id="status-tts" title="GPT-SoVITS TTS Server">
-                    <i data-lucide="volume-2"></i> TTS
+                <span class="status-badge" id="status-tts" title="Click to Toggle TTS Voice Output (Mute/Unmute)" style="cursor:pointer;">
+                    <i data-lucide="volume-2" id="tts-icon"></i> <span id="tts-label">TTS</span>
                 </span>
                 <span class="status-badge" id="status-whisper" title="Whisper Speech-to-Text">
                     <i data-lucide="mic"></i> ASR
                 </span>
+                <span class="status-badge online" id="status-cpu" title="System CPU Load">
+                    <i data-lucide="cpu"></i> CPU: <span id="cpu-val">0%</span>
+                </span>
+                <span class="status-badge online" id="status-ram" title="System RAM Memory Usage">
+                    <i data-lucide="hard-drive"></i> RAM: <span id="ram-val">0%</span>
+                </span>
             </div>
+
+            <button class="icon-btn" id="toggle-subtitle-btn" title="Toggle Compact Subtitle Mode" style="margin-right:4px;">
+                <i data-lucide="subtitles"></i>
+            </button>
+
+            <button class="icon-btn" id="toggle-code-mode-btn" title="Toggle Pair-Programming Code Studio" style="margin-right:4px;">
+                <i data-lucide="code-2"></i>
+            </button>
 
             <button class="icon-btn" id="toggle-settings-btn" title="Open Settings">
                 <i data-lucide="settings"></i>
             </button>
         </header>
 
+        <!-- Sakura Petals Container -->
+        <div id="sakura-container" style="position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:2; overflow:hidden;"></div>
+
         <!-- Main Body Layout -->
-        <div class="main-layout">
-            <!-- Chat Container -->
+        <div class="main-layout" id="main-layout-container">
+            <!-- Code Studio Panel (Pair-Programming Mode) -->
+            <section class="code-studio-panel" id="code-studio-panel" style="display:none;">
+                <div class="drag-handle" id="code-drag-handle"></div>
+                <div class="code-studio-header">
+                    <div class="code-title"><i data-lucide="terminal"></i> Pair-Programming Studio</div>
+                    <select id="code-lang-select" class="code-lang-select">
+                        <option value="python">Python</option>
+                        <option value="javascript">JavaScript</option>
+                        <option value="html">HTML / CSS</option>
+                        <option value="sql">SQL</option>
+                    </select>
+                </div>
+                <textarea id="code-studio-editor" placeholder="# Paste or type your code here, senpai..."></textarea>
+                <div class="code-studio-actions">
+                    <button class="btn secondary-btn" id="code-action-review"><i data-lucide="search"></i> Review Code</button>
+                    <button class="btn secondary-btn" id="code-action-fix"><i data-lucide="wrench"></i> Fix Bug</button>
+                    <button class="btn secondary-btn" id="code-action-explain"><i data-lucide="help-circle"></i> Explain</button>
+                </div>
+            </section>
+
             <section class="chat-container">
+                <div class="drag-handle" id="chat-drag-handle"></div>
                 <div class="chat-messages" id="chat-messages">
                     <div class="message system">
                         <div class="message-content">
@@ -63,13 +100,27 @@
                         <span class="indicator-text">Riko is thinking...</span>
                     </div>
 
+                    <!-- Image Preview Area -->
+                    <div class="image-preview-container" id="image-preview-container" style="display:none; padding:6px 12px; margin-bottom:6px; background:rgba(255,255,255,0.05); border-radius:8px; align-items:center; gap:8px;">
+                        <img id="image-preview-img" src="" style="max-height:48px; border-radius:4px; border:1px solid rgba(255,255,255,0.2);">
+                        <span style="font-size:12px; color:#aaa;" id="image-preview-name">image.png</span>
+                        <button id="remove-img-btn" style="background:none; border:none; color:#ff6b6b; cursor:pointer; font-size:16px; margin-left:auto;">&times;</button>
+                    </div>
+                    <!-- Floating Suggestion Pills -->
+                    <div class="suggestion-pills-container" id="suggestion-pills-container"></div>
+
                     <!-- Input Bar -->
                     <div class="input-bar">
                         <button class="mic-btn" id="mic-btn" title="Click to Record">
                             <i data-lucide="mic" id="mic-icon"></i>
                             <div class="pulse-wave" id="mic-wave"></div>
                         </button>
-                        <input type="text" id="chat-input" placeholder="Type a message, senpai..." autocomplete="off">
+                        <label for="image-input" class="attach-img-btn" id="attach-img-btn" title="Attach Image / Vision">
+                            <i data-lucide="image"></i>
+                        </label>
+                        <input type="file" id="image-input" accept="image/*" style="display:none;">
+                        <input type="text" id="chat-input" placeholder="Type a message or attach an image..." autocomplete="off">
+                        <canvas class="voice-waveform" id="voice-waveform" style="display:none; flex:1; height:36px; max-height:36px; background:transparent;"></canvas>
                         <button class="send-btn" id="send-btn" title="Send message">
                             <i data-lucide="send"></i>
                         </button>
@@ -91,6 +142,11 @@
                     </div>
 
                     <div class="blush-overlay" id="blush-overlay"></div>
+                    
+                    <!-- Floating Subtitle Overlay -->
+                    <div class="subtitle-overlay" id="subtitle-overlay" style="display: none;">
+                        <span class="subtitle-text" id="subtitle-text"></span>
+                    </div>
                     
                     <!-- Interaction Overlay -->
                     <div class="interaction-overlay" id="interaction-overlay" style="pointer-events: none;">
@@ -122,6 +178,17 @@
 
                     <!-- Tab: Persona Settings -->
                     <div class="tab-panel active" id="tab-persona">
+                        <div class="input-group">
+                            <label for="stage-theme-select">3D Stage Lighting & Background Theme</label>
+                            <select id="stage-theme-select">
+                                <option value="auto">Auto (System Time)</option>
+                                <option value="morning">Morning Dew (Sunrise)</option>
+                                <option value="daylight">Sunny Daylight</option>
+                                <option value="sunset">Golden Sunset</option>
+                                <option value="night">Midnight Stars</option>
+                            </select>
+                        </div>
+
                         <div class="input-group">
                             <label for="system-prompt">Character Personality (System Prompt)</label>
                             <textarea id="system-prompt" rows="5"></textarea>
@@ -220,6 +287,6 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@1.0.10/lib/three-vrm.js"></script>
 
-    <script src="/static/app.js?v=34"></script>
+    <script src="/static/app.js?v=43"></script>
 </body>
 </html>

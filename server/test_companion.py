@@ -139,7 +139,26 @@ def run_tests():
             return False
             
         print("✅ Memory consolidation and long-term memory logic passed!")
-        
+
+        # 5. Test Streaming SSE API Endpoint
+        print("\n📋 [Test 5] Real-Time SSE Streaming Endpoint Test (/api/chat/stream)")
+        try:
+            from fastapi.testclient import TestClient
+            from main_api import app
+            test_client = TestClient(app)
+            stream_resp = test_client.post("/api/chat/stream", json={"message": "Hi Riko, are you online?"})
+            if stream_resp.status_code != 200:
+                print(f"❌ Failed: Streaming endpoint returned status {stream_resp.status_code}")
+                return False
+            if "data: " not in stream_resp.text:
+                print(f"❌ Failed: Streaming response does not contain SSE 'data: ' lines.")
+                return False
+            print("   Received SSE events response successfully!")
+            print("✅ SSE Streaming API endpoint test passed!")
+        except Exception as stream_err:
+            print(f"❌ Failed: Streaming endpoint test error: {stream_err}")
+            return False
+
     finally:
         # Restore backups
         if os.path.exists(history_file):
