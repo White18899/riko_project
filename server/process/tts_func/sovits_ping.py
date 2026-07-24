@@ -35,6 +35,8 @@ def sovits_gen(in_text, output_wav_pth="output.wav"):
     
     # Clean text to remove emojis/symbols that crash GPT-SoVITS tokenizer
     in_text = clean_text_for_tts(in_text)
+    if not in_text.strip():
+        return None
     
     # Resolve reference audio path to absolute path dynamically
     ref_audio = char_config['sovits_ping_config']['ref_audio_path']

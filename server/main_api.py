@@ -125,7 +125,7 @@ def initialize_services():
         pass
 
 # Run initialization on startup
-initialize_services()  # Config reloaded with turn limit 80 & advanced memory layers
+initialize_services()  # Config reloaded with turn limit 80, advanced memory layers, Moondream vision, and GPT-SoVITS TTS
 
 # API Endpoints
 
@@ -242,7 +242,7 @@ async def chat_endpoint(request: ChatRequest):
     if not message:
         raise HTTPException(status_code=400, detail="Empty message")
 
-    active_model = "llama3.2-vision" if request.images else MODEL
+    active_model = "moondream" if request.images else MODEL
     process_affection_from_chat(message, get_project_path("riko_memory.db"))
 
     try:
@@ -263,18 +263,20 @@ async def chat_endpoint(request: ChatRequest):
 
         # 3. Format to Ollama Schema
         ollama_messages = []
+        is_vision_model = (active_model in ["llava", "llama3.2-vision", "moondream"])
         for msg in prompt_messages:
             role = msg.get('role')
             content_list = msg.get('content', [])
             content_text = ""
             images = []
             if isinstance(content_list, list):
-                content_text = " ".join([c.get('text', '') for c in content_list if isinstance(c, dict) and c.get('type') == 'input_text'])
-                for c in content_list:
-                    if isinstance(c, dict) and c.get('type') == 'input_image' and c.get('image'):
-                        img_data = c.get('image')
-                        clean_img = img_data.split(",", 1)[1] if "," in img_data else img_data
-                        images.append(clean_img)
+                content_text = " ".join([c.get('text', '') for c in content_list if isinstance(c, dict) and c.get('type') in ['input_text', 'output_text']])
+                if is_vision_model:
+                    for c in content_list:
+                        if isinstance(c, dict) and c.get('type') == 'input_image' and c.get('image'):
+                            img_data = c.get('image')
+                            clean_img = img_data.split(",", 1)[1] if "," in img_data else img_data
+                            images.append(clean_img)
             else:
                 content_text = str(content_list)
             
@@ -360,7 +362,7 @@ async def chat_stream_endpoint(request: ChatRequest):
     if not message:
         raise HTTPException(status_code=400, detail="Empty message")
 
-    active_model = "llama3.2-vision" if request.images else MODEL
+    active_model = "moondream" if request.images else MODEL
     process_affection_from_chat(message, get_project_path("riko_memory.db"))
 
     def generate_events():
@@ -382,18 +384,20 @@ async def chat_stream_endpoint(request: ChatRequest):
 
             # 3. Format to Ollama Schema
             ollama_messages = []
+            is_vision_model = (active_model in ["llava", "llama3.2-vision", "moondream"])
             for msg in prompt_messages:
                 role = msg.get('role')
                 content_list = msg.get('content', [])
                 content_text = ""
                 images = []
                 if isinstance(content_list, list):
-                    content_text = " ".join([c.get('text', '') for c in content_list if isinstance(c, dict) and c.get('type') == 'input_text'])
-                    for c in content_list:
-                        if isinstance(c, dict) and c.get('type') == 'input_image' and c.get('image'):
-                            img_data = c.get('image')
-                            clean_img = img_data.split(",", 1)[1] if "," in img_data else img_data
-                            images.append(clean_img)
+                    content_text = " ".join([c.get('text', '') for c in content_list if isinstance(c, dict) and c.get('type') in ['input_text', 'output_text']])
+                    if is_vision_model:
+                        for c in content_list:
+                            if isinstance(c, dict) and c.get('type') == 'input_image' and c.get('image'):
+                                img_data = c.get('image')
+                                clean_img = img_data.split(",", 1)[1] if "," in img_data else img_data
+                                images.append(clean_img)
                 else:
                     content_text = str(content_list)
                 

@@ -132,3 +132,41 @@ Currently, `/api/chat` processes the full LLM completion and generates TTS audio
   * Dynamic audio spectrum visualizer ring glowing around Riko's 3D pedestal while speaking.
 * **Gamified Friendship & Pomodoro Study Timer (RPG Mode):**
   * Relationship XP meter, conversation streak milestones, and a built-in Pomodoro focus timer where Riko encourages you during study/work sessions.
+
+---
+
+## 8. 🌐 Advanced Integrations, OS Automation & Agentic Actions
+
+This section details next-generation "agentic" capabilities where Riko acts as a personal desktop assistant, reading messages, managing schedules, and executing OS-level tasks.
+
+### 📧 Gmail Integration (Active Inbox Manager)
+* **Goal**: Enable Riko to inspect, search, summarize, and draft replies for your emails.
+* **Libraries**: `google-auth-oauthlib`, `google-api-python-client` (Gmail API).
+* **Core Capabilities**:
+  * **Alerts**: *"Senpai! You received an urgent email from your professor/boss... Do you want me to write a draft?"*
+  * **Summarization**: Batch-reading unread emails and providing a bulleted daily briefing.
+  * **Interactive Drafting**: Instruct Riko: *"Draft a polite decline to this meeting"* $\rightarrow$ Riko drafts the email in Gmail Drafts for your final review.
+
+### 💬 WhatsApp Integration (Local Chat Companion)
+* **Goal**: Allow Riko to read unread chats, send notifications, and compose messages.
+* **Libraries**: `selenium` or `playwright` (controlling WhatsApp Web with a persistent user profile directory to avoid QR code login on every launch), or `pywhatkit`.
+* **Core Capabilities**:
+  * **Desktop Notifications**: Riko flashes a desktop alert or speaks: *"That annoying friend of yours just texted you on WhatsApp. Should I tell you what they said?"*
+  * **Voice-to-Text Messaging**: Speak to Riko $\rightarrow$ she transcribes and sends the message directly to the specified contact.
+  * **Summarize Groups**: Extracting and summarizing the last 50 messages from busy group chats.
+
+### 🖥️ OS Automation & "Riko-Executor" (PyAutoGUI Agent)
+* **Goal**: Allow Riko to interact directly with your screen and local OS applications.
+* **Libraries**: `pyautogui`, `keyboard`, `subprocess`.
+* **Core Capabilities**:
+  * **Media & App Control**: Command Riko to *"Play Spotify"*, *"Mute system volume"*, or *"Launch VS Code"*.
+  * **Vision-Guided Clicks**: Combine `moondream` screen coordinates with `pyautogui.click(x, y)` so Riko can click buttons on your screen on command (e.g. *"Click the blue download button for me"*).
+  * **File Finder**: Search your workspace or document directories for specific code files.
+
+### 📅 Calendar & Pomodoro Assistant
+* **Goal**: Full integration with Google Calendar to manage daily routines.
+* **Libraries**: Google Calendar API.
+* **Core Capabilities**:
+  * **Morning Briefings**: When starting Riko in the morning, she outlines your calendar events.
+  * **Study Interrupter**: If a calendar event starts, Riko pauses your music or overlay screen, stating: *"Senpai, it's time for your study session! No slacking off!"*
+

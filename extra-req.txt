@@ -1,3 +1,5 @@
 faster-whisper
 sounddevice
 openai
+kokoro-onnx
+soundfile

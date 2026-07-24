@@ -125,6 +125,10 @@
                             <i data-lucide="image"></i>
                         </label>
                         <input type="file" id="image-input" accept="image/*" style="display:none;">
+                        <button class="screen-watch-btn" id="screen-watch-btn" title="Toggle Live Screen Watch">
+                            <i data-lucide="monitor"></i>
+                        </button>
+                        <video id="screen-share-feed" autoplay playsinline style="display:none;"></video>
                         <input type="text" id="chat-input" placeholder="Type a message or attach an image..." autocomplete="off">
                         <canvas class="voice-waveform" id="voice-waveform" style="display:none; flex:1; height:36px; max-height:36px; background:transparent;"></canvas>
                         <button class="send-btn" id="send-btn" title="Send message">

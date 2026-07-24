@@ -63,6 +63,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const removeImgBtn = document.getElementById('remove-img-btn');
     let currentAttachedImageBase64 = null;
 
+    // Screen Watch Elements
+    const screenWatchBtn = document.getElementById('screen-watch-btn');
+    const screenShareFeed = document.getElementById('screen-share-feed');
+    let screenShareStream = null;
+
     // State Variables
     let mediaRecorder = null;
     let audioChunks = [];
@@ -316,7 +321,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let imgHtml = '';
         if (imgBase64) {
-            imgHtml = `<img src="${imgBase64}" style="max-width:180px; max-height:140px; border-radius:8px; display:block; margin-bottom:6px; border:1px solid rgba(255,255,255,0.2);">`;
+            const imgSrc = imgBase64.startsWith('data:image/') ? imgBase64 : `data:image/jpeg;base64,${imgBase64}`;
+            imgHtml = `<img src="${imgSrc}" style="max-width:180px; max-height:140px; border-radius:8px; display:block; margin-bottom:6px; border:1px solid rgba(255,255,255,0.2);">`;
         }
 
         msgDiv.innerHTML = `
@@ -727,6 +733,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         
                         currentVRM.expressionManager.setValue('happy', 0);
+                        currentVRM.expressionManager.setValue('relaxed', 0);
                         currentVRM.expressionManager.setValue('angry', 0);
                         currentVRM.expressionManager.setValue('sad', 0);
                     } else {
@@ -737,19 +744,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         currentVRM.expressionManager.setValue('oo', 0);
                         
                         if (currentEmotion === 'happy') {
-                            currentVRM.expressionManager.setValue('happy', 0.85);
+                            currentVRM.expressionManager.setValue('relaxed', 0.85);
+                            currentVRM.expressionManager.setValue('happy', 0);
                             currentVRM.expressionManager.setValue('angry', 0);
                             currentVRM.expressionManager.setValue('sad', 0);
                         } else if (currentEmotion === 'annoyed') {
                             currentVRM.expressionManager.setValue('angry', 0.95);
                             currentVRM.expressionManager.setValue('happy', 0);
+                            currentVRM.expressionManager.setValue('relaxed', 0);
                             currentVRM.expressionManager.setValue('sad', 0);
                         } else if (currentEmotion === 'sad') {
                             currentVRM.expressionManager.setValue('sad', 0.8);
                             currentVRM.expressionManager.setValue('happy', 0);
+                            currentVRM.expressionManager.setValue('relaxed', 0);
                             currentVRM.expressionManager.setValue('angry', 0);
                         } else {
                             currentVRM.expressionManager.setValue('happy', 0);
+                            currentVRM.expressionManager.setValue('relaxed', 0);
                             currentVRM.expressionManager.setValue('angry', 0);
                             currentVRM.expressionManager.setValue('sad', 0);
                         }
@@ -968,7 +979,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (imageInput) imageInput.value = '';
         if (imagePreviewContainer) imagePreviewContainer.style.display = 'none';
 
-        appendUserMessage(message, attachedImage);
+        let attachedImages = [];
+        if (attachedImage) {
+            attachedImages.push(attachedImage);
+        } else if (screenShareStream && screenShareFeed) {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = screenShareFeed.videoWidth || 1280;
+                canvas.height = screenShareFeed.videoHeight || 720;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(screenShareFeed, 0, 0, canvas.width, canvas.height);
+                const base64Data = canvas.toDataURL('image/jpeg', 0.8);
+                const cleanBase64 = base64Data.split(',')[1];
+                attachedImages.push(cleanBase64);
+            } catch (captureErr) {
+                console.error("Failed to capture screen watch snapshot:", captureErr);
+            }
+        }
+
+        const userImageToShow = attachedImages.length > 0 ? attachedImages[0] : null;
+        appendUserMessage(message, userImageToShow);
         chatInput.value = '';
         
         // Show typing indicator, active thinking state and video
@@ -1024,7 +1054,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     message: message,
-                    images: attachedImage ? [attachedImage] : null,
+                    images: attachedImages.length > 0 ? attachedImages : null,
                     enable_tts: !isTtsMuted
                 })
             });
@@ -1128,7 +1158,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: message })
+                    body: JSON.stringify({
+                        message: message,
+                        images: attachedImages.length > 0 ? attachedImages : null
+                    })
                 });
 
                 if (res.ok) {
@@ -1754,6 +1787,60 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error('Failed to update affection score:', err);
         }
+    }
+
+    async function toggleScreenWatch() {
+        if (screenShareStream) {
+            stopScreenWatch();
+        } else {
+            try {
+                screenShareStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        cursor: "always"
+                    },
+                    audio: false
+                });
+                
+                if (screenShareFeed) {
+                    screenShareFeed.srcObject = screenShareStream;
+                    screenShareFeed.play();
+                }
+                
+                if (screenWatchBtn) {
+                    screenWatchBtn.classList.add('active');
+                    screenWatchBtn.title = "Screen Watch is Active (Click to Stop)";
+                }
+                
+                // Listen for native "Stop sharing" button click
+                screenShareStream.getVideoTracks()[0].addEventListener('ended', () => {
+                    stopScreenWatch();
+                });
+                
+                appendSystemMessage("📺 Screen Watch activated. Riko will now automatically watch your screen whenever you submit a message.");
+            } catch (err) {
+                console.error("Screen Share initiation failed:", err);
+                appendSystemMessage("⚠️ Failed to activate Screen Watch: " + err.message);
+            }
+        }
+    }
+    
+    function stopScreenWatch() {
+        if (screenShareStream) {
+            screenShareStream.getTracks().forEach(track => track.stop());
+            screenShareStream = null;
+        }
+        if (screenShareFeed) {
+            screenShareFeed.srcObject = null;
+        }
+        if (screenWatchBtn) {
+            screenWatchBtn.classList.remove('active');
+            screenWatchBtn.title = "Toggle Live Screen Watch";
+        }
+        appendSystemMessage("📺 Screen Watch deactivated.");
+    }
+
+    if (screenWatchBtn) {
+        screenWatchBtn.addEventListener('click', toggleScreenWatch);
     }
 
     // ==========================================================================
