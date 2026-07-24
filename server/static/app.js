@@ -247,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         let text = '';
                         let imgBase64 = null;
                         if (Array.isArray(content_list)) {
-                            text = content_list.filter(c => c.type === 'input_text').map(c => c.text).join(' ');
+                            text = content_list.map(c => c.text || '').join(' ').trim();
                             const imgItem = content_list.find(c => c.type === 'input_image');
                             if (imgItem) {
                                 imgBase64 = imgItem.image;
@@ -1155,6 +1155,7 @@ document.addEventListener('DOMContentLoaded', () => {
             isRequestPending = false;
             chatInput.focus();
             scrollToBottom();
+            updateAffectionHUD();
         }
     }
 
@@ -1412,6 +1413,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (type === 'headpat') {
             videoViewport.className = 'video-viewport happy';
             charStatus.textContent = 'Happy';
+            changeAffection(2);
             
             // Set SVG properties directly
             currentEmotion = 'happy';
@@ -1441,6 +1443,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             videoViewport.className = 'video-viewport annoyed';
             charStatus.textContent = 'Annoyed';
+            changeAffection(-1);
             
             // Set SVG properties directly
             currentEmotion = 'annoyed';
@@ -1709,12 +1712,57 @@ document.addEventListener('DOMContentLoaded', () => {
     makeDraggable(chatContainerEl, chatDragHandleEl);
     makeDraggable(codePanelEl, codeDragHandleEl);
 
+    // Relationship HUD update and change helpers
+    async function updateAffectionHUD() {
+        try {
+            const res = await fetch('/api/affection');
+            if (res.ok) {
+                const data = await res.json();
+                const labelEl = document.getElementById('affection-label');
+                const barEl = document.getElementById('affection-bar');
+                
+                if (labelEl) labelEl.textContent = `Riko's Mood: ${data.level_name} (${data.level_label})`;
+                if (barEl) barEl.style.width = `${data.score}%`;
+            }
+        } catch (err) {
+            console.error('Failed to load affection score:', err);
+        }
+    }
+
+    async function changeAffection(amount) {
+        try {
+            const res = await fetch('/api/affection/change', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: amount })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const labelEl = document.getElementById('affection-label');
+                const barEl = document.getElementById('affection-bar');
+                const hudEl = document.getElementById('affection-hud');
+                
+                if (labelEl) labelEl.textContent = `Riko's Mood: ${data.level_name} (${data.level_label})`;
+                if (barEl) barEl.style.width = `${data.score}%`;
+                
+                if (hudEl) {
+                    hudEl.classList.remove('gained');
+                    void hudEl.offsetWidth; // Reflow
+                    hudEl.classList.add('gained');
+                }
+            }
+        } catch (err) {
+            console.error('Failed to update affection score:', err);
+        }
+    }
+
     // ==========================================================================
     // 12. Auto-run startup fetches & initialization
     // ==========================================================================
     updateServiceStatus();
     loadConfiguration();
     loadChatHistory();
+    updateAffectionHUD();
     
     // Initialize default avatar state
     currentEmotion = 'neutral';

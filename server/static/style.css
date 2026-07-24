@@ -1462,6 +1462,62 @@ body.subtitle-mode-active .input-controls {
     margin: 0 0.5rem;
 }
 
+/* ==========================================================================
+   16. Relationship Affection HUD
+   ========================================================================== */
+
+.affection-hud {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.75rem 1.25rem 0.5rem 1.25rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    z-index: 10;
+    transition: all 0.3s ease;
+}
+
+.affection-label {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #ff85a2;
+    text-shadow: 0 0 8px rgba(255, 133, 162, 0.3);
+}
+
+.affection-bar-container {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.affection-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #ff85a2 0%, #f72585 100%);
+    border-radius: 4px;
+    width: 0%;
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 10px rgba(247, 37, 133, 0.5);
+}
+
+.affection-hud.gained {
+    animation: hud-flash 0.5s ease-out;
+}
+
+@keyframes hud-flash {
+    0% { background: rgba(255, 133, 162, 0.1); }
+    100% { background: rgba(255, 255, 255, 0.02); }
+}
+
+body.subtitle-mode-active .affection-hud {
+    display: none !important;
+}
+
 
 
 

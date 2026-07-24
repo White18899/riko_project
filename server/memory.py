@@ -50,6 +50,13 @@ class SQLiteMemoryStore(BaseMemoryStore):
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS relationship_state (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+            ''')
+            cursor.execute("INSERT OR IGNORE INTO relationship_state (key, value) VALUES ('affection_score', '25')")
             conn.commit()
 
     def load_memories(self) -> list:
@@ -88,27 +95,78 @@ class SQLiteMemoryStore(BaseMemoryStore):
             return cursor.fetchall()
 
     def search_relevant_facts(self, query: str = None, top_k: int = 8) -> list:
-        all_facts = self.load_memories()
-        if not all_facts:
+        # Load facts with created_at timestamps to calculate recency decay
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT fact, created_at FROM facts ORDER BY id ASC")
+            rows = cursor.fetchall()
+        
+        if not rows:
             return []
+            
+        all_facts = [r[0] for r in rows]
+        fact_timestamps = [r[1] for r in rows]
+        
         if not query or not query.strip():
             return all_facts[:top_k]
-
-        query_words = set(re.findall(r'\w+', query.lower()))
+            
+        query_words = [w for w in re.findall(r'\w+', query.lower()) if len(w) > 1]
         if not query_words:
             return all_facts[:top_k]
-
-        scored_facts = []
+            
+        # Compute term frequency, document lengths, and avg doc length
+        docs_words = []
         for fact in all_facts:
-            fact_words = set(re.findall(r'\w+', fact.lower()))
-            intersection = query_words.intersection(fact_words)
-            if not intersection:
-                score = 0.0
-            else:
-                score = len(intersection) / math.sqrt(len(query_words) * len(fact_words))
-            scored_facts.append((score, fact))
-
+            words = re.findall(r'\w+', fact.lower())
+            docs_words.append(words)
+            
+        doc_lengths = [len(d) for d in docs_words]
+        avg_doc_len = sum(doc_lengths) / len(doc_lengths) if doc_lengths else 1.0
+        
+        # Document Frequency for query terms
+        df = {}
+        for qw in query_words:
+            df[qw] = sum(1 for d in docs_words if qw in d)
+            
+        N = len(all_facts)
+        k1 = 1.2
+        b = 0.75
+        
+        from datetime import datetime
+        now = datetime.utcnow()
+        
+        scored_facts = []
+        for idx, fact in enumerate(all_facts):
+            words = docs_words[idx]
+            doc_len = doc_lengths[idx]
+            
+            # BM25 Raw Score
+            bm25_score = 0.0
+            for qw in query_words:
+                if qw in words:
+                    tf = words.count(qw)
+                    n_q = df.get(qw, 0)
+                    # Safe IDF log
+                    idf = math.log((N - n_q + 0.5) / (n_q + 0.5) + 1.0)
+                    term_score = idf * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (doc_len / avg_doc_len)))
+                    bm25_score += term_score
+                    
+            # Recency Decay Factor (decay score up to 30% for older items)
+            decay_factor = 1.0
+            try:
+                ts_str = fact_timestamps[idx]
+                ts = datetime.strptime(ts_str.split('.')[0], "%Y-%m-%d %H:%M:%S")
+                delta_days = (now - ts).total_seconds() / (24 * 3600)
+                # ln(2)/30 ≈ 0.023 -> 30-day half-life decay
+                decay_factor = math.exp(-0.023 * max(0.0, delta_days))
+            except Exception:
+                pass
+                
+            final_score = bm25_score * (0.7 + 0.3 * decay_factor)
+            scored_facts.append((final_score, fact))
+            
         scored_facts.sort(key=lambda x: x[0], reverse=True)
+        
         relevant = [fact for score, fact in scored_facts if score > 0]
         if len(relevant) < top_k:
             for score, fact in scored_facts:
@@ -117,6 +175,33 @@ class SQLiteMemoryStore(BaseMemoryStore):
                     if len(relevant) >= top_k:
                         break
         return relevant[:top_k]
+
+    def search_relevant_triples(self, query: str = None, limit: int = 6) -> list:
+        if not query or not query.strip():
+            return []
+            
+        # Extract keywords of length > 3
+        words = [w.strip().lower() for w in re.findall(r'\w+', query) if len(w) > 3]
+        if not words:
+            return []
+            
+        relevant_triples = []
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            for word in words:
+                cursor.execute(
+                    "SELECT subject, relation, object FROM knowledge_triples WHERE LOWER(subject) LIKE ? OR LOWER(object) LIKE ? LIMIT ?",
+                    (f"%{word}%", f"%{word}%", limit)
+                )
+                rows = cursor.fetchall()
+                for r in rows:
+                    if r not in relevant_triples:
+                        relevant_triples.append(r)
+                        if len(relevant_triples) >= limit:
+                            break
+                if len(relevant_triples) >= limit:
+                    break
+        return relevant_triples
 
     def record_episodic_turn(self, role: str, text: str):
         with sqlite3.connect(self.db_path) as conn:
@@ -217,13 +302,34 @@ class MemoryManager:
     def get_prompt_messages(self, user_query: str = None) -> list:
         """
         Builds the message list for LLM inference.
-        Uses dynamic TF-IDF RAG vector search to inject top-K relevant memories per query.
+        Uses dynamic BM25 ranking + Graph Triples RAG to inject top-K relevant facts.
         """
         history = self.load_short_term()
         facts = self.long_term_store.search_relevant_facts(user_query, top_k=8)
-        triples = self.long_term_store.load_triples()
+        triples = self.long_term_store.search_relevant_triples(user_query, limit=6)
         
-        injected_prompt = self.base_system_prompt
+        # Determine affection level behavior modifier
+        affection_score = 25
+        try:
+            with sqlite3.connect(self.db_file) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT value FROM relationship_state WHERE key = 'affection_score'")
+                row = cursor.fetchone()
+                if row:
+                    affection_score = int(row[0])
+        except Exception:
+            pass
+
+        if affection_score <= 15:
+            modifier = "\n[RELATIONSHIP STATUS: ANNOYED (Lv. 1). Act highly cold, very dismissive, sarcastic, and extremely reluctant to cooperate. Complain about Senpai's requests.]"
+        elif affection_score <= 45:
+            modifier = "\n[RELATIONSHIP STATUS: TOLERABLE (Lv. 2). Act like a standard tsundere—reluctantly helpful but complaining, calling Senpai 'idiot' or 'baka' occasionally.]"
+        elif affection_score <= 75:
+            modifier = "\n[RELATIONSHIP STATUS: FRIENDLY (Lv. 3). Act softer and cooperative. Show concern, blush when patted or complimented, but try to hide it under a tsundere act.]"
+        else:
+            modifier = "\n[RELATIONSHIP STATUS: AFFECTIONATE (Lv. 4). Act sweet, protective, and easily flustered. Openly show affection and support for your beloved Senpai!]"
+
+        injected_prompt = self.base_system_prompt + modifier
         memory_blocks = []
 
         if facts:
@@ -231,11 +337,11 @@ class MemoryManager:
             memory_blocks.append(f"### PERSISTENT LONG-TERM MEMORIES (Relevant Facts):\n{facts_text}")
 
         if triples:
-            triples_text = "\n".join([f"- ({t[0]} -> {t[1]} -> {t[2]})" for t in triples[:6]])
+            triples_text = "\n".join([f"- ({t[0]} -> {t[1]} -> {t[2]})" for t in triples])
             memory_blocks.append(f"### KNOWLEDGE GRAPH RELATIONSHIPS:\n{triples_text}")
 
         if memory_blocks:
-            injected_prompt = f"{self.base_system_prompt}\n\n" + "\n\n".join(memory_blocks)
+            injected_prompt = f"{self.base_system_prompt + modifier}\n\n" + "\n\n".join(memory_blocks)
             
         if history and history[0].get('role') == 'system':
             history[0]['content'] = [
@@ -255,32 +361,29 @@ class MemoryManager:
     def consolidate(self, ollama_client, model: str):
         """
         Consolidates older chat history into long-term memories when short-term history is too long.
+        Extracts both plain facts and relational graph triples.
         """
         history = self.load_short_term()
         
-        # A turn is 2 messages (user + assistant)
-        # Total messages = 1 (system prompt) + turns * 2
         non_system_msgs = [m for m in history if m.get('role') != 'system']
         num_turns = len(non_system_msgs) // 2
         
         if num_turns <= self.max_turns:
             return
             
-        # We need to consolidate. Let's take the oldest half of the turns to consolidate.
         turns_to_consolidate = num_turns // 2
         msgs_to_consolidate_count = turns_to_consolidate * 2
         
         msgs_to_consolidate = non_system_msgs[:msgs_to_consolidate_count]
         remaining_msgs = non_system_msgs[msgs_to_consolidate_count:]
         
-        # Format the conversation text for the summarization prompt
         conv_text = ""
         for m in msgs_to_consolidate:
             role = m.get('role', '').capitalize()
             content_list = m.get('content', [])
             text = ""
             if isinstance(content_list, list):
-                text = " ".join([c.get('text', '') for c in content_list if isinstance(c, dict)])
+                text = " ".join([c.get('text', '') for c in content_list if isinstance(c, dict) and c.get('type') == 'input_text'])
             else:
                 text = str(content_list)
             conv_text += f"{role}: {text}\n"
@@ -290,7 +393,9 @@ class MemoryManager:
         
         prompt = f"""
 You are the memory manager for an AI companion.
-Your job is to extract durable facts, user preferences, and key recurring topics from the following conversation segment, and merge/update them with the existing list of facts.
+Your job is to:
+1. Extract durable facts, user preferences, and key recurring topics from the following conversation segment, and merge/update them with the existing list of facts.
+2. Extract key relational triples representing connections in the format: [Subject | Relation | Object] (e.g. [User | likes | Python], [Riko | is | ticklish]). Keep them simple and concise.
 
 Existing facts:
 {existing_facts_text}
@@ -302,44 +407,74 @@ Rules:
 1. Extract new facts about the user (e.g., name, hobbies, preferences, feelings) or key topics discussed.
 2. Combine and update any existing facts if the conversation segment provides new info.
 3. Keep the list concise and relevant. Avoid temporary or trivial statements.
-4. Output the updated facts as a plain bulleted list, one fact per line, starting with '- '. Do not include any thinking tags or introductory/concluding remarks.
+4. Format your output strictly in two clear sections starting with header lines:
+--- FACTS ---
+- <fact 1>
+- <fact 2>
+--- TRIPLES ---
+- [Subject | Relation | Object]
+- [Subject | Relation | Object]
+
+Do not include any thinking tags or introductory/concluding remarks.
 """
         try:
             print("🧠 Consolidating old chat history into long-term memory...")
             response = ollama_client.chat(
                 model=model,
                 messages=[
-                    {"role": "system", "content": "You are a precise information extraction assistant. Output only the requested bulleted list of facts, starting each line with '- '."},
+                    {"role": "system", "content": "You are a precise information extraction assistant. Output only the requested sections, starting each line with '- '."},
                     {"role": "user", "content": prompt}
                 ]
             )
             content = response.get('message', {}).get('content', '')
             content = strip_thinking(content)
             
-            # Parse the bulleted list
+            # Parse facts and triples sections
             new_facts = []
+            new_triples = []
+            
+            in_facts = True
             for line in content.split('\n'):
                 line = line.strip()
-                if line.startswith('-'):
-                    fact = line[1:].strip()
-                    if fact:
-                        new_facts.append(fact)
-                elif line.startswith('*'):
-                    fact = line[1:].strip()
-                    if fact:
-                        new_facts.append(fact)
+                if "--- FACTS ---" in line:
+                    in_facts = True
+                    continue
+                if "--- TRIPLES ---" in line:
+                    in_facts = False
+                    continue
+                
+                if line.startswith('-') or line.startswith('*'):
+                    item = line[1:].strip()
+                    if not item:
+                        continue
+                    if in_facts:
+                        new_facts.append(item)
+                    else:
+                        item = item.strip('[]')
+                        parts = [p.strip() for p in item.split('|')]
+                        if len(parts) == 3:
+                            new_triples.append(parts)
             
-            # Fallback parse if no bullets found
-            if not new_facts:
+            # Fallback parse if formatting got lost
+            if not new_facts and not new_triples:
                 for line in content.split('\n'):
                     line = line.strip()
-                    if line and not line.startswith('<') and len(line) > 5:
-                        new_facts.append(line)
+                    if line.startswith('-'):
+                        fact = line[1:].strip()
+                        if fact:
+                            new_facts.append(fact)
             
             if new_facts:
-                # Save consolidated facts
                 self.save_long_term(new_facts)
                 print(f"💾 Saved {len(new_facts)} facts to long-term memory.")
+                
+            if new_triples:
+                for t in new_triples:
+                    try:
+                        self.long_term_store.save_triple(t[0], t[1], t[2])
+                    except Exception:
+                        pass
+                print(f"🕸️ Saved {len(new_triples)} knowledge triples to database.")
             
             # Reconstruct short-term history: system prompt + remaining messages
             new_history = [

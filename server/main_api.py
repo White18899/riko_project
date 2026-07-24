@@ -125,7 +125,7 @@ def initialize_services():
         pass
 
 # Run initialization on startup
-initialize_services()  # Config reloaded with turn limit 80
+initialize_services()  # Config reloaded with turn limit 80 & advanced memory layers
 
 # API Endpoints
 
@@ -243,6 +243,7 @@ async def chat_endpoint(request: ChatRequest):
         raise HTTPException(status_code=400, detail="Empty message")
 
     active_model = "llama3.2-vision" if request.images else MODEL
+    process_affection_from_chat(message, get_project_path("riko_memory.db"))
 
     try:
         # 1. Load History & Append User Message
@@ -360,6 +361,7 @@ async def chat_stream_endpoint(request: ChatRequest):
         raise HTTPException(status_code=400, detail="Empty message")
 
     active_model = "llama3.2-vision" if request.images else MODEL
+    process_affection_from_chat(message, get_project_path("riko_memory.db"))
 
     def generate_events():
         try:
@@ -579,6 +581,98 @@ async def clear_history_endpoint():
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
     return {"status": "error", "message": "Memory manager not initialized"}
+
+def get_affection_data(db_path: str):
+    import sqlite3
+    score = 25
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM relationship_state WHERE key = 'affection_score'")
+            row = cursor.fetchone()
+            if row:
+                score = int(row[0])
+    except Exception as e:
+        print(f"Error reading affection score: {e}")
+        
+    if score <= 15:
+        level_name = "Annoyed"
+        sub_label = "Tsun (Lv. 1)"
+    elif score <= 45:
+        level_name = "Tolerable"
+        sub_label = "Neutral (Lv. 2)"
+    elif score <= 75:
+        level_name = "Friendly"
+        sub_label = "Soft (Lv. 3)"
+    else:
+        level_name = "Affectionate"
+        sub_label = "Dere (Lv. 4)"
+        
+    return score, level_name, sub_label
+
+@app.get("/api/affection")
+async def get_affection_endpoint():
+    db_file = get_project_path("riko_memory.db")
+    score, name, label = get_affection_data(db_file)
+    return {
+        "score": score,
+        "level_name": name,
+        "level_label": label
+    }
+
+class AffectionChangeRequest(BaseModel):
+    amount: int
+
+@app.post("/api/affection/change")
+async def change_affection_endpoint(request: AffectionChangeRequest):
+    db_file = get_project_path("riko_memory.db")
+    score, _, _ = get_affection_data(db_file)
+    new_score = max(0, min(100, score + request.amount))
+    
+    try:
+        import sqlite3
+        with sqlite3.connect(db_file) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE relationship_state SET value = ? WHERE key = 'affection_score'", (str(new_score),))
+            conn.commit()
+    except Exception as e:
+        print(f"Error updating affection score: {e}")
+        raise HTTPException(status_code=500, detail="Database update failed")
+        
+    _, name, label = get_affection_data(db_file)
+    return {
+        "score": new_score,
+        "level_name": name,
+        "level_label": label
+    }
+
+def process_affection_from_chat(message: str, db_path: str):
+    message_lower = message.lower()
+    
+    compliment_words = ["cute", "pretty", "beautiful", "smart", "clever", "helpful", "good girl", "love you", "nice", "awesome", "perfect", "sweet"]
+    insult_words = ["stupid", "annoying", "idiot", "hate you", "jerk", "dumb", "ugly", "bad", "useless", "boring"]
+    
+    change = 0
+    if any(word in message_lower for word in compliment_words):
+        change += 1
+    if any(word in message_lower for word in insult_words):
+        change -= 1
+        
+    if change != 0:
+        try:
+            import sqlite3
+            with sqlite3.connect(db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT value FROM relationship_state WHERE key = 'affection_score'")
+                row = cursor.fetchone()
+                if row:
+                    score = int(row[0])
+                    new_score = max(0, min(100, score + change))
+                    cursor.execute("UPDATE relationship_state SET value = ? WHERE key = 'affection_score'", (str(new_score),))
+                    conn.commit()
+                    print(f"❤️ Affection score updated from chat sentiment: {score} -> {new_score}")
+        except Exception as e:
+            print(f"Error auto-updating affection: {e}")
 
 def clean_and_truncate_text(text: str, max_chars: int = 600) -> str:
     # 1. Remove action descriptions inside asterisks (e.g. *giggles*, *pats head*)
